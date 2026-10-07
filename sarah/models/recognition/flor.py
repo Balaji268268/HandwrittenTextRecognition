@@ -120,7 +120,8 @@ class RecognitionModel(BaseRecognitionModel):
 
         decoder = tf.keras.layers.LayerNormalization(epsilon=1e-3)(decoder)
         decoder = tf.keras.layers.Dropout(rate=0.6)(decoder)
-        decoder = tf.keras.layers.Dense(units=self.lexical_shape[-1])(decoder)
+        vocab_units = self.lexical_shape[-1] if (self.lexical_shape and len(self.lexical_shape) > 0) else 100
+        decoder = tf.keras.layers.Dense(units=vocab_units)(decoder)
 
         self.decoder = tf.keras.Model(name='recognition_decoder', inputs=decoder_input, outputs=decoder)
 

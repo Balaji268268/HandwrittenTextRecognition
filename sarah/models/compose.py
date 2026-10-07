@@ -195,10 +195,15 @@ class Compose():
                 }
 
             if RecognitionModel:
+                lexical_shape = self.tokenizer.lexical_shape if (self.tokenizer and hasattr(self.tokenizer, 'lexical_shape')) else []
+                if not lexical_shape:
+                    vocab_len = (len(self.tokenizer.chars) + 1) if (self.tokenizer and hasattr(self.tokenizer, 'chars')) else 100
+                    lexical_shape = (1, 1024, vocab_len)
+
                 self.model = RecognitionModel(name='recognition',
                                               image_shape=self.image_shape,
-                                              lexical_shape=self.tokenizer.lexical_shape,
-                                              font_graph_shape=self.tokenizer.font_graph_shape,
+                                              lexical_shape=lexical_shape,
+                                              font_graph_shape=self.tokenizer.font_graph_shape if (self.tokenizer and hasattr(self.tokenizer, 'font_graph_shape')) else None,
                                               seed=self.seed,
                                               **synthesis_params)
 
