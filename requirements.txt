@@ -1,0 +1,9 @@
+fonttools
+levenshtein
+matplotlib
+mlflow
+openai
+opencv-python-headless
+pandas
+tensorflow[and-cuda];       platform_system != 'Darwin'
+tensorflow;                 platform_system == 'Darwin'

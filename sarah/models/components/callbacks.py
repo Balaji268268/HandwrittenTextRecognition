@@ -1,0 +1,343 @@
+import os
+import cv2
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+
+
+class GANMonitor(tf.keras.callbacks.Callback):
+    """
+    Callback for monitoring and saving images during GAN training.
+    """
+
+    def __init__(self,
+                 filepath,
+                 sample_gen,
+                 sample_steps,
+                 latent_dim,
+                 save_freq=200):
+        """
+        Initialize the callback.
+
+        Parameters
+        ----------
+        filepath : str
+            Path where images will be saved.
+        sample_gen : generator
+            Generator yielding sample data batches.
+        sample_steps : int
+            Number of steps per sample run.
+        latent_dim : int
+            Dimension of the style latent space.
+        save_freq : int, optional
+            Frequency (in steps) to save images.
+        """
+
+        self.filepath = filepath
+        self.sample_gen = sample_gen
+        self.sample_steps = sample_steps
+        self.latent_dim = latent_dim
+        self.save_freq = save_freq
+
+    def on_train_begin(self, logs=None):
+        """
+        Called at the beginning of training.
+
+        Parameters
+        ----------
+        logs : dict, optional
+            Metrics at the start of training.
+        """
+
+        self.epoch_index = 0
+        self.global_step_index = 0
+        self.local_step_index = 0
+
+    def on_epoch_begin(self, epoch, logs=None):
+        """
+        Called at the beginning of each epoch.
+
+        Parameters
+        ----------
+        epoch : int
+            Index of the current epoch.
+        logs : dict, optional
+            Metrics at the start of the epoch.
+        """
+
+        self.epoch_index += 1
+        self.local_step_index = 0
+
+    def on_batch_end(self, batch, logs=None):
+        """
+        Called at the end of each batch.
+
+        Parameters
+        ----------
+        batch : int
+            Index of the current batch.
+        logs : dict, optional
+            Log data at the end of the batch.
+        """
+
+        if self.global_step_index > 0 and self.global_step_index % self.save_freq == 0:
+            subpath = f"{str(self.global_step_index)}_{str(self.local_step_index)}_{str(self.epoch_index)}"
+            filepath = os.path.join(self.filepath, subpath)
+
+            for i in range(self.sample_steps):
+                _, y_data = next(self.sample_gen)
+                image_data, text_data, mask_data = y_data[0], y_data[1], y_data[3]
+
+                self._save_images(filepath, image_data, step=i, name='authentic')
+
+                features_data = self.model.writer_encoder(image_data, training=False)
+                features_data = self.model.unwrap_call_output(features_data)
+
+                latent_data = self.model.style_encoder(features_data, training=False)
+                latent_data = self.model.unwrap_call_output(latent_data)
+
+                fake_guided = self.model.generator([text_data, latent_data, mask_data], training=False)
+                self._save_images(filepath, fake_guided, step=i, name='guided')
+
+                random_latent_data = (len(image_data), self.latent_dim)
+                random_latent_data = tf.random.normal(shape=random_latent_data)
+
+                fake_random = self.model.generator([text_data, random_latent_data, mask_data], training=False)
+                self._save_images(filepath, fake_random, step=i, name='random')
+
+        self.global_step_index += 1
+        self.local_step_index += 1
+
+    def _save_images(self, filepath, images, step, name):
+        """
+        Save a batch of images.
+
+        Parameters
+        ----------
+        filepath : str
+            Path where images will be saved.
+        images : np.ndarray
+            Array of images to save.
+        step : int
+            Sample step for global image index.
+        name : str
+            Category label appended to the filename.
+        """
+
+        os.makedirs(filepath, exist_ok=True)
+
+        images = np.uint8((images + 1.0) * 127.5)
+        batch_size = len(images)
+
+        for i, image in enumerate(images):
+            index = step * batch_size + i + 1
+            cv2.imwrite(os.path.join(filepath, f"{index}_{name}.png"), image)
+
+
+class TrainingLogger(tf.keras.callbacks.Callback):
+    """
+    Logs training metrics to a CSV file and saves model checkpoints.
+
+    References
+    ----------
+    Issue: Mismatch Between Training Progress and History/CSVLogger Callback Values
+        https://github.com/keras-team/keras/issues/20212
+    """
+
+    def __init__(self,
+                 mode='min',
+                 monitor=None,
+                 model_path=None,
+                 save_best_only=True,
+                 save_weights_only=True,
+                 csv_path=None,
+                 csv_separator=',',
+                 verbose=1):
+        """
+        Initializes the logger callback.
+
+        Parameters
+        ----------
+        monitor : str, optional
+            Metric to monitor for saving checkpoints.
+        mode : str, optional
+            Mode for monitoring ('min' or 'max').
+        model_path : str, optional
+            Path for saving model checkpoints.
+        save_best_only : bool, optional
+            Whether to save only the best models.
+        save_weights_only : bool, optional
+            Whether to save only the model's weights.
+        csv_path : str, optional
+            Path to the CSV file for logging metrics.
+        csv_separator : str, optional
+            csv_separator for the CSV file.
+        verbose : int, optional
+            Verbosity mode.
+        """
+
+        super().__init__()
+
+        self.mode = mode
+        self.monitor = monitor
+        self.model_path = model_path
+        self.save_best_only = save_best_only
+        self.save_weights_only = save_weights_only
+        self.csv_path = csv_path
+        self.csv_separator = csv_separator
+        self.verbose = verbose
+
+        if self.model_path:
+            suffix = '.weights.h5' if self.save_weights_only else '.keras'
+            self.model_path = f"{self.model_path.removesuffix(suffix)}{suffix}"
+
+    def on_train_begin(self, logs=None):
+        """
+        Called at the beginning of training.
+
+        Parameters
+        ----------
+        logs : dict, optional
+            Metrics at the start of training.
+        """
+
+        self.epoch_index = 0
+        self.epochs = []
+        self.best = float('-inf') if self.mode == 'max' else float('inf')
+
+    def on_epoch_begin(self, epoch, logs=None):
+        """
+        Called at the beginning of each epoch.
+
+        Parameters
+        ----------
+        epoch : int
+            Index of the current epoch.
+        logs : dict, optional
+            Metrics at the start of the epoch.
+        """
+
+        self.epoch_index += 1
+
+    def on_batch_end(self, batch, logs=None):
+        """
+        Called at the end of each batch.
+
+        Parameters
+        ----------
+        batch : int
+            Index of the current batch.
+        logs : dict, optional
+            Metrics at the end of the batch.
+        """
+
+        self.epochs.append({'epoch': self.epoch_index, **logs})
+
+    def on_epoch_end(self, epoch, logs=None):
+        """
+        Called at the end of each epoch.
+
+        Parameters
+        ----------
+        epoch : int
+            Index of the current epoch.
+        logs : dict, optional
+            Metrics at the end of the epoch.
+        """
+
+        self.on_batch_end(None, logs=logs)
+
+        opt = [x for x in dir(self.model) if 'optimizer' in x.lower()]
+
+        lr = [getattr(self.model, x, None) for x in opt]
+        lr = [float(tf.keras.backend.get_value(x.learning_rate)) for x in lr if x]
+
+        optimizer = {x: y for x, y in zip(opt, lr)}
+
+        self.epochs.append({'epoch': self.epoch_index, **optimizer})
+
+        df = self._dataframe(self.epochs, save=True)
+
+        if self.model_path:
+            if self.save_best_only and self.mode and self.monitor in logs.keys():
+                current = df[self.monitor].iloc[-1]
+
+                if current < self.best:
+                    if self.verbose > 0:
+                        print(f"\nEpoch {self.epoch_index}: {self.monitor} improved "
+                              f"from {self.best:.5f} to {current:.5f}, "
+                              f"saving model to {self.model_path}")
+
+                    if self.save_weights_only:
+                        self.model.save_weights(self.model_path, overwrite=True)
+                    else:
+                        self.model.save(self.model_path, overwrite=True)
+
+                    self.best = current
+                else:
+                    if self.verbose > 0:
+                        print(f"\nEpoch {self.epoch_index}: "
+                              f"{self.monitor} did not improve "
+                              f"from {self.best:.5f}")
+            else:
+                if self.verbose > 0:
+                    print(f"\nEpoch {self.epoch_index}: saving model to {self.model_path}")
+
+                if self.save_weights_only:
+                    self.model.save_weights(self.model_path, overwrite=True)
+                else:
+                    self.model.save(self.model_path, overwrite=True)
+
+    def on_train_end(self, logs=None):
+        """
+        Called at the end of training.
+
+        Parameters
+        ----------
+        logs : dict, optional
+            Metrics at the end of training.
+        """
+
+        df = self._dataframe(self.epochs, save=False)
+
+        non_metrics = ['epoch', 'lr', 'learning_rate', 'optimizer', 'checkpoint']
+        metrics = [x for x in df.columns if not any(y in x for y in non_metrics)]
+
+        self.history = df[metrics].to_dict(orient='list')
+        self.model.history = self
+
+    def _dataframe(self, epochs, save=False):
+        """
+        Generates a DataFrame of training metrics.
+
+        Parameters
+        ----------
+        epochs : list of dict
+            Recorded training metrics for each epoch.
+        save : bool, optional
+            If True, saves the DataFrame to the CSV path provided.
+
+        Returns
+        -------
+        df : pandas.DataFrame
+            DataFrame containing the processed training metrics.
+        """
+
+        df = pd.DataFrame(epochs)
+
+        df = df.groupby('epoch').mean().astype(float).reset_index()
+        df = df.sort_values(by='epoch').reset_index(drop=True)
+
+        if self.mode and self.monitor in df.columns:
+            if self.save_best_only:
+                df['checkpoint'] = getattr(df[self.monitor], f"cum{self.mode}")()
+                df['checkpoint'] = np.where(df['checkpoint'].eq(df['checkpoint'].shift()), 0, df['checkpoint'])
+                df['checkpoint'] = df['checkpoint'].astype(bool).replace(False, '').replace(True, '*')
+            else:
+                df['checkpoint'] = '*'
+
+        if save and self.csv_path:
+            os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
+            df.round(8).to_csv(self.csv_path, sep=self.csv_separator, index=False)
+
+        return df
