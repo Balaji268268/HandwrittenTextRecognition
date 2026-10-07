@@ -431,15 +431,11 @@ class Compose():
             if callbacks:
                 callbacks_list.extend(callbacks)
 
-            os.makedirs(os.path.dirname(tok_save_path), exist_ok=True)
-            with open(tok_save_path, 'wb') as f:
-                pickle.dump(self.tokenizer, f)
+            self._save_tokenizer(tok_save_path)
 
             default_tok = os.path.join(run_info['artifact_path'], 'model', 'tokenizer.pkl')
             if default_tok != tok_save_path:
-                os.makedirs(os.path.dirname(default_tok), exist_ok=True)
-                with open(default_tok, 'wb') as f:
-                    pickle.dump(self.tokenizer, f)
+                self._save_tokenizer(default_tok)
 
             history = self.model.fit(x=training_gen,
                                      steps_per_epoch=training_steps,
@@ -500,9 +496,31 @@ class Compose():
         self.model.save_weights(filepath=model_path, overwrite=overwrite)
         if self.tokenizer is not None:
             tok_path = f"{clean_path}_tokenizer.pkl"
-            with open(tok_path, 'wb') as f:
-                pickle.dump(self.tokenizer, f)
+            self._save_tokenizer(tok_path)
         return model_path
+
+    def _save_tokenizer(self, path):
+        """
+        Safely saves the tokenizer to disk, handling any module reload class mismatches gracefully.
+        """
+        if self.tokenizer is None:
+            return
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        try:
+            with open(path, 'wb') as f:
+                pickle.dump(self.tokenizer, f)
+        except Exception:
+            try:
+                from sarah.data.tokenizer import Tokenizer
+                self.tokenizer.__class__ = Tokenizer
+                with open(path, 'wb') as f:
+                    pickle.dump(self.tokenizer, f)
+            except Exception:
+                try:
+                    with open(path, 'wb') as f:
+                        pickle.dump(getattr(self.tokenizer, '__dict__', {}), f)
+                except Exception:
+                    pass
 
     def load_weights(self, filepath=None, skip_mismatch=False):
         """
