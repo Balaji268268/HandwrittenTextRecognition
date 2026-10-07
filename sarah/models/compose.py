@@ -85,6 +85,7 @@ class Compose():
         self.discriminator_steps = discriminator_steps
         self.generator_steps = generator_steps
         self.synthesis_probability = synthesis_probability
+        self.experiment_name = experiment_name
 
         # Auto-detect dataset name from tokenizer
         tok_ds = getattr(self.tokenizer, 'dataset_name', None) if self.tokenizer else None
