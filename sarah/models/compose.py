@@ -86,8 +86,17 @@ class Compose():
         self.generator_steps = generator_steps
         self.synthesis_probability = synthesis_probability
 
-        self.experiment_name = experiment_name
-        self.output_path = output_path
+        # Auto-detect dataset name from tokenizer
+        tok_ds = getattr(self.tokenizer, 'dataset_name', None) if self.tokenizer else None
+        if (self.experiment_name == 'Default' or not self.experiment_name) and tok_ds:
+            self.experiment_name = tok_ds
+
+        # If in Google Colab with Drive mounted, default storing directory directly to Google Drive
+        colab_drive = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
+        if output_path == 'outputs' and os.path.isdir('/content/drive/MyDrive'):
+            self.output_path = colab_drive
+        else:
+            self.output_path = output_path
 
         self.gpu = gpu
         self.seed = seed
@@ -253,10 +262,16 @@ class Compose():
             with mlflow.start_run(run_id=run_info['id'], run_name=run_info['name']) as run:
                 run_info = self.get_run_info(run_context=run)
         else:
-            run_info = self.get_run_info(run_context=run_context)
-            artifact_path = os.path.join(run_info['artifact_path'], 'model', '<model>.weights.h5')
-
-            self.model.load_weights(filepath=artifact_path)
+            colab_drive = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
+            ds_name = (getattr(self.tokenizer, 'dataset_name', None) or self.experiment_name or 'model').lower().replace(' ', '_')
+            drive_file = os.path.join(colab_drive, f"model_{ds_name}.weights.h5")
+            if os.path.isfile(drive_file):
+                print(f"[Restoring Model] Loaded weights from Google Drive: {drive_file}")
+                self.model.load_weights(filepath=drive_file)
+            else:
+                run_info = self.get_run_info(run_context=run_context)
+                artifact_path = os.path.join(run_info['artifact_path'], 'model', '<model>.weights.h5')
+                self.model.load_weights(filepath=artifact_path)
 
         self.model.compile(learning_rate=learning_rate)
 
@@ -334,7 +349,11 @@ class Compose():
 
             run_info = self.get_run_info(run_context=run)
 
-            # Determine checkpoint paths (support direct Google Drive or custom locations)
+            # Determine checkpoint paths (defaults to Google Drive when mounted)
+            ds_name = (getattr(self.tokenizer, 'dataset_name', None) or self.experiment_name or 'model').lower().replace(' ', '_')
+            if ds_name in ('default', 'none'):
+                ds_name = 'model'
+
             if checkpoint_path is not None:
                 clean_ckpt = str(checkpoint_path)
                 for ext in ['.weights.h5', '.h5', '.keras']:
@@ -345,22 +364,20 @@ class Compose():
                 os.makedirs(os.path.dirname(os.path.abspath(model_save_path)), exist_ok=True)
                 csv_save_path = f"{clean_ckpt}_epochs.csv"
                 tok_save_path = f"{clean_ckpt}_tokenizer.pkl"
+            elif os.path.isdir('/content/drive/MyDrive'):
+                # ALWAYS save directly to Google Drive when mounted in Google Colab
+                drive_save_dir = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
+                os.makedirs(drive_save_dir, exist_ok=True)
+                model_save_path = os.path.join(drive_save_dir, f"model_{ds_name}.weights.h5")
+                csv_save_path = os.path.join(drive_save_dir, f"model_{ds_name}_epochs.csv")
+                tok_save_path = os.path.join(drive_save_dir, f"model_{ds_name}_tokenizer.pkl")
             elif self.output_path and self.output_path != 'outputs':
-                ds_name = (self.experiment_name or 'model').lower().replace(' ', '_')
                 model_save_path = os.path.join(self.output_path, f"model_{ds_name}.weights.h5")
                 os.makedirs(os.path.dirname(os.path.abspath(model_save_path)), exist_ok=True)
                 csv_save_path = os.path.join(self.output_path, f"model_{ds_name}_epochs.csv")
                 tok_save_path = os.path.join(self.output_path, f"model_{ds_name}_tokenizer.pkl")
-            elif os.path.isdir('/content/drive/MyDrive'):
-                # Automatically save directly to Google Drive when mounted in Google Colab
-                drive_save_dir = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
-                os.makedirs(drive_save_dir, exist_ok=True)
-                ds_name = (self.experiment_name or 'model').lower().replace(' ', '_')
-                model_save_path = os.path.join(drive_save_dir, f"model_{ds_name}.weights.h5")
-                csv_save_path = os.path.join(drive_save_dir, f"model_{ds_name}_epochs.csv")
-                tok_save_path = os.path.join(drive_save_dir, f"model_{ds_name}_tokenizer.pkl")
             else:
-                model_save_path = os.path.join(run_info['artifact_path'], 'model', f"{self.recognition or 'recognition'}.weights.h5")
+                model_save_path = os.path.join(run_info['artifact_path'], 'model', f"model_{ds_name}.weights.h5")
                 csv_save_path = os.path.join(run_info['artifact_path'], 'epochs.csv')
                 tok_save_path = os.path.join(run_info['artifact_path'], 'model', 'tokenizer.pkl')
 
@@ -486,19 +503,24 @@ class Compose():
                 pickle.dump(self.tokenizer, f)
         return model_path
 
-    def load_weights(self, filepath, skip_mismatch=False):
+    def load_weights(self, filepath=None, skip_mismatch=False):
         """
-        Load the weights of the composed model from a specific filepath (e.g. Google Drive).
+        Load the weights of the composed model. If filepath is None, automatically
+        restores the model from Google Drive.
 
         Parameters
         ----------
-        filepath : str
-            Filepath for loading weights.
+        filepath : str, optional
+            Filepath for loading weights. If None, restores directly from Google Drive.
         skip_mismatch : bool, optional
             Whether to skip mismatched layers.
         """
         if self.model is None:
             raise ValueError("Model is not initialized.")
+        colab_drive = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
+        ds_name = (getattr(self.tokenizer, 'dataset_name', None) or self.experiment_name or 'model').lower().replace(' ', '_')
+        if filepath is None:
+            filepath = os.path.join(colab_drive, f"model_{ds_name}.weights.h5")
         clean_path = str(filepath)
         for ext in ['.weights.h5', '.h5', '.keras']:
             if clean_path.endswith(ext):
@@ -507,11 +529,14 @@ class Compose():
         candidates = [
             f"{clean_path}.weights.h5",
             filepath,
-            f"{clean_path}.h5"
+            f"{clean_path}.h5",
+            os.path.join(colab_drive, f"model_{ds_name}.weights.h5"),
+            os.path.join(colab_drive, f"model_{ds_name}.h5")
         ]
         for c in candidates:
             if os.path.isfile(c):
                 self.model.load_weights(filepath=c, skip_mismatch=skip_mismatch)
+                print(f"[Restored Model] Successfully loaded weights from: {c}")
                 return c
         raise FileNotFoundError(f"Could not find weights file at {filepath} (checked: {candidates})")
 

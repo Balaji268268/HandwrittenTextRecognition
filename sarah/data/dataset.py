@@ -91,8 +91,9 @@ class Dataset():
         self.test_ratio = test_ratio
         self.illumination = illumination
         self.binarization = binarization
-        self.lazy_mode = lazy_mode
         self.tokenizer = tokenizer or Tokenizer()
+        if self.source:
+            self.tokenizer.dataset_name = str(self.source)
         self.multigrams = multigrams
         self.input_path = input_path
         self.fonts_path = fonts_path
