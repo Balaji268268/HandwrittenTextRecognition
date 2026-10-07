@@ -272,7 +272,9 @@ class Compose():
             plateau_patience=20,
             patience=40,
             epochs=1000,
-            verbose=1):
+            verbose=1,
+            checkpoint_path=None,
+            callbacks=None):
         """
         Trains the model.
 
@@ -302,6 +304,10 @@ class Compose():
             Number of training epochs.
         verbose : int, optional
             Verbosity level.
+        checkpoint_path : str, optional
+            Direct destination path (e.g. on Google Drive) to save best weights and tokenizer.
+        callbacks : list, optional
+            Additional custom Keras callbacks.
 
         Returns
         -------
@@ -320,7 +326,7 @@ class Compose():
         with mlflow.start_run(run_id=run_info['id'], run_name=run_info['name']) as run:
             mlflow.set_tags(self.tags)
 
-            callbacks = [tf.keras.callbacks.SwapEMAWeights(swap_on_epoch=True)] \
+            callbacks_list = [tf.keras.callbacks.SwapEMAWeights(swap_on_epoch=True)] \
                 if self.model.optimizer.use_ema else []
 
             monitor = self.model.monitor.lstrip('val_') \
@@ -328,14 +334,36 @@ class Compose():
 
             run_info = self.get_run_info(run_context=run)
 
-            callbacks.extend([
+            # Determine checkpoint paths (support direct Google Drive or custom locations)
+            if checkpoint_path is not None:
+                clean_ckpt = str(checkpoint_path)
+                for ext in ['.weights.h5', '.h5', '.keras']:
+                    if clean_ckpt.endswith(ext):
+                        clean_ckpt = clean_ckpt[:-len(ext)]
+                        break
+                model_save_path = f"{clean_ckpt}.weights.h5"
+                os.makedirs(os.path.dirname(os.path.abspath(model_save_path)), exist_ok=True)
+                csv_save_path = f"{clean_ckpt}_epochs.csv"
+                tok_save_path = f"{clean_ckpt}_tokenizer.pkl"
+            elif self.output_path and self.output_path != 'outputs':
+                ds_name = (self.experiment_name or 'model').lower().replace(' ', '_')
+                model_save_path = os.path.join(self.output_path, f"model_{ds_name}.weights.h5")
+                os.makedirs(os.path.dirname(os.path.abspath(model_save_path)), exist_ok=True)
+                csv_save_path = os.path.join(self.output_path, f"model_{ds_name}_epochs.csv")
+                tok_save_path = os.path.join(self.output_path, f"model_{ds_name}_tokenizer.pkl")
+            else:
+                model_save_path = os.path.join(run_info['artifact_path'], 'model', f"{self.recognition or 'recognition'}.weights.h5")
+                csv_save_path = os.path.join(run_info['artifact_path'], 'epochs.csv')
+                tok_save_path = os.path.join(run_info['artifact_path'], 'model', 'tokenizer.pkl')
+
+            callbacks_list.extend([
                 TrainingLogger(
                     mode='min',
                     monitor=monitor,
-                    model_path=os.path.join(run_info['artifact_path'], 'model', '<model>.weights.h5'),
+                    model_path=model_save_path,
                     save_best_only=self.supervised_task,
                     save_weights_only=True,
-                    csv_path=os.path.join(run_info['artifact_path'], 'epochs.csv'),
+                    csv_path=csv_save_path,
                     csv_separator=',',
                     verbose=verbose,
                 ),
@@ -351,7 +379,7 @@ class Compose():
             ])
 
             if self.supervised_task:
-                callbacks.extend([
+                callbacks_list.extend([
                     tf.keras.callbacks.ReduceLROnPlateau(
                         mode='min',
                         monitor=monitor,
@@ -365,7 +393,7 @@ class Compose():
                 ])
 
             else:
-                callbacks.extend([
+                callbacks_list.extend([
                     GANMonitor(
                         filepath=os.path.join(run_info['artifact_path'], 'synthesis', 'training'),
                         sample_gen=monitor_sample_gen,
@@ -374,20 +402,38 @@ class Compose():
                     ),
                 ])
 
-            tokenizer_path = os.path.join(run_info['artifact_path'], 'model', 'tokenizer.pkl')
-            os.makedirs(os.path.dirname(tokenizer_path), exist_ok=True)
+            if callbacks:
+                callbacks_list.extend(callbacks)
 
-            with open(tokenizer_path, 'wb') as f:
+            os.makedirs(os.path.dirname(tok_save_path), exist_ok=True)
+            with open(tok_save_path, 'wb') as f:
                 pickle.dump(self.tokenizer, f)
+
+            default_tok = os.path.join(run_info['artifact_path'], 'model', 'tokenizer.pkl')
+            if default_tok != tok_save_path:
+                os.makedirs(os.path.dirname(default_tok), exist_ok=True)
+                with open(default_tok, 'wb') as f:
+                    pickle.dump(self.tokenizer, f)
 
             history = self.model.fit(x=training_gen,
                                      steps_per_epoch=training_steps,
                                      validation_data=validation_gen,
                                      validation_steps=validation_steps,
-                                     callbacks=callbacks,
+                                     callbacks=callbacks_list,
                                      epochs=epochs,
                                      shuffle=False,
                                      verbose=verbose)
+
+            # Ensure weights and tokenizer are permanently stored to destination
+            if checkpoint_path is not None or (self.output_path and self.output_path != 'outputs'):
+                try:
+                    self.save_weights(model_save_path, overwrite=True)
+                    if verbose > 0:
+                        print(f"\n[Drive Sync] Model weights saved to: {model_save_path}")
+                        print(f"[Drive Sync] Tokenizer saved to: {tok_save_path}")
+                except Exception as e:
+                    if verbose > 0:
+                        print(f"[Drive Sync Notice] {e}")
 
             mlflow.end_run()
 
@@ -403,6 +449,63 @@ class Compose():
                 self.save_context(metrics=validation_metrics, prefix='validation')
 
         return history
+
+    def save_weights(self, filepath, overwrite=True):
+        """
+        Save the weights of the composed model to a specific filepath (e.g. Google Drive).
+        Also saves the tokenizer alongside the model.
+
+        Parameters
+        ----------
+        filepath : str
+            Filepath for saving the weights.
+        overwrite : bool, optional
+            Whether to overwrite existing files.
+        """
+        if self.model is None:
+            raise ValueError("Model is not initialized.")
+        clean_path = str(filepath)
+        for ext in ['.weights.h5', '.h5', '.keras']:
+            if clean_path.endswith(ext):
+                clean_path = clean_path[:-len(ext)]
+                break
+        model_path = f"{clean_path}.weights.h5"
+        os.makedirs(os.path.dirname(os.path.abspath(model_path)), exist_ok=True)
+        self.model.save_weights(filepath=model_path, overwrite=overwrite)
+        if self.tokenizer is not None:
+            tok_path = f"{clean_path}_tokenizer.pkl"
+            with open(tok_path, 'wb') as f:
+                pickle.dump(self.tokenizer, f)
+        return model_path
+
+    def load_weights(self, filepath, skip_mismatch=False):
+        """
+        Load the weights of the composed model from a specific filepath (e.g. Google Drive).
+
+        Parameters
+        ----------
+        filepath : str
+            Filepath for loading weights.
+        skip_mismatch : bool, optional
+            Whether to skip mismatched layers.
+        """
+        if self.model is None:
+            raise ValueError("Model is not initialized.")
+        clean_path = str(filepath)
+        for ext in ['.weights.h5', '.h5', '.keras']:
+            if clean_path.endswith(ext):
+                clean_path = clean_path[:-len(ext)]
+                break
+        candidates = [
+            f"{clean_path}.weights.h5",
+            filepath,
+            f"{clean_path}.h5"
+        ]
+        for c in candidates:
+            if os.path.isfile(c):
+                self.model.load_weights(filepath=c, skip_mismatch=skip_mismatch)
+                return c
+        raise FileNotFoundError(f"Could not find weights file at {filepath} (checked: {candidates})")
 
     def predict_writer_identification(self, x, steps, token_decode=True, verbose=1):
         """

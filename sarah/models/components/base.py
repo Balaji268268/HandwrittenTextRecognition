@@ -161,9 +161,12 @@ class BaseModel(tf.keras.Model):
             model = self.get_model_by_name(name)
             modelpath = filepath.replace('<model>', name)
 
-            if model is not None and os.path.isfile(modelpath):
-                model.built = True
-                model.load_weights(filepath=modelpath, skip_mismatch=skip_mismatch)
+            if model is not None:
+                if not os.path.isfile(modelpath) and os.path.isfile(modelpath.replace('.h5', '.weights.h5')):
+                    modelpath = modelpath.replace('.h5', '.weights.h5')
+                if os.path.isfile(modelpath):
+                    model.built = True
+                    model.load_weights(filepath=modelpath, skip_mismatch=skip_mismatch)
 
     def save_weights(self, filepath, overwrite=True):
         """
@@ -182,6 +185,11 @@ class BaseModel(tf.keras.Model):
             modelpath = filepath.replace('<model>', name)
 
             if model is not None:
+                if not modelpath.endswith('.weights.h5') and modelpath.endswith('.h5'):
+                    modelpath = modelpath[:-3] + '.weights.h5'
+                dir_name = os.path.dirname(os.path.abspath(modelpath))
+                if dir_name:
+                    os.makedirs(dir_name, exist_ok=True)
                 model.trainable = True
                 model.save_weights(filepath=modelpath, overwrite=overwrite)
 

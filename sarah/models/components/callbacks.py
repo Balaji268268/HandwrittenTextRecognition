@@ -188,8 +188,13 @@ class TrainingLogger(tf.keras.callbacks.Callback):
         self.verbose = verbose
 
         if self.model_path:
+            clean_path = str(self.model_path)
+            for ext in ['.weights.h5', '.h5', '.keras']:
+                if clean_path.endswith(ext):
+                    clean_path = clean_path[:-len(ext)]
+                    break
             suffix = '.weights.h5' if self.save_weights_only else '.keras'
-            self.model_path = f"{self.model_path.removesuffix(suffix)}{suffix}"
+            self.model_path = f"{clean_path}{suffix}"
 
     def on_train_begin(self, logs=None):
         """
@@ -259,6 +264,7 @@ class TrainingLogger(tf.keras.callbacks.Callback):
         df = self._dataframe(self.epochs, save=True)
 
         if self.model_path:
+            display_path = self.model_path.replace('<model>', getattr(self.model, 'name', 'model'))
             if self.save_best_only and self.mode and self.monitor in logs.keys():
                 current = df[self.monitor].iloc[-1]
 
@@ -266,7 +272,7 @@ class TrainingLogger(tf.keras.callbacks.Callback):
                     if self.verbose > 0:
                         print(f"\nEpoch {self.epoch_index}: {self.monitor} improved "
                               f"from {self.best:.5f} to {current:.5f}, "
-                              f"saving model to {self.model_path}")
+                              f"saving model to {display_path}")
 
                     if self.save_weights_only:
                         self.model.save_weights(self.model_path, overwrite=True)
@@ -281,7 +287,7 @@ class TrainingLogger(tf.keras.callbacks.Callback):
                               f"from {self.best:.5f}")
             else:
                 if self.verbose > 0:
-                    print(f"\nEpoch {self.epoch_index}: saving model to {self.model_path}")
+                    print(f"\nEpoch {self.epoch_index}: saving model to {display_path}")
 
                 if self.save_weights_only:
                     self.model.save_weights(self.model_path, overwrite=True)
