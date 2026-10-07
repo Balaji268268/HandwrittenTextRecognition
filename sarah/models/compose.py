@@ -351,6 +351,14 @@ class Compose():
                 os.makedirs(os.path.dirname(os.path.abspath(model_save_path)), exist_ok=True)
                 csv_save_path = os.path.join(self.output_path, f"model_{ds_name}_epochs.csv")
                 tok_save_path = os.path.join(self.output_path, f"model_{ds_name}_tokenizer.pkl")
+            elif os.path.isdir('/content/drive/MyDrive'):
+                # Automatically save directly to Google Drive when mounted in Google Colab
+                drive_save_dir = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
+                os.makedirs(drive_save_dir, exist_ok=True)
+                ds_name = (self.experiment_name or 'model').lower().replace(' ', '_')
+                model_save_path = os.path.join(drive_save_dir, f"model_{ds_name}.weights.h5")
+                csv_save_path = os.path.join(drive_save_dir, f"model_{ds_name}_epochs.csv")
+                tok_save_path = os.path.join(drive_save_dir, f"model_{ds_name}_tokenizer.pkl")
             else:
                 model_save_path = os.path.join(run_info['artifact_path'], 'model', f"{self.recognition or 'recognition'}.weights.h5")
                 csv_save_path = os.path.join(run_info['artifact_path'], 'epochs.csv')
