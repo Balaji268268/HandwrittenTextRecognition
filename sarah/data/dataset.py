@@ -96,11 +96,25 @@ class Dataset():
         if self.source:
             self.tokenizer.dataset_name = str(self.source)
         self.multigrams = multigrams
+
+        # Auto-resolve input_path if running from a different working directory
+        if not os.path.isdir(input_path):
+            repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            candidate = os.path.join(repo_root, input_path)
+            if os.path.isdir(candidate):
+                input_path = candidate
+            elif os.path.isdir('/content/handwritten-text-recognition/datasets'):
+                input_path = '/content/handwritten-text-recognition/datasets'
+
         self.input_path = input_path
         self.fonts_path = fonts_path
         self.seed = seed
 
         if data is None:
+            if self.source:
+                target_source_dir = os.path.join(self.input_path, self.source)
+                self._extract_source_zip(self.input_path, target_source_dir)
+
             self._source = self._import_source_module(self.source)
             self._source = self._source(self.input_path)
 
