@@ -1,7 +1,9 @@
 import os
+import sys
 import glob
 import zipfile
 import importlib
+from pathlib import Path
 import numpy as np
 import concurrent.futures
 
@@ -97,17 +99,33 @@ class Dataset():
             self.tokenizer.dataset_name = str(self.source)
         self.multigrams = multigrams
 
-        # Auto-resolve input_path if running from a different working directory
-        if not os.path.isdir(input_path):
-            repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            candidate = os.path.join(repo_root, input_path)
-            if os.path.isdir(candidate):
-                input_path = candidate
-            elif os.path.isdir('/content/handwritten-text-recognition/datasets'):
-                input_path = '/content/handwritten-text-recognition/datasets'
+        # Auto-resolve input_path to absolute directory
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if not os.path.isabs(input_path):
+            candidates = [
+                os.path.abspath(input_path),
+                os.path.join(repo_root, input_path),
+                '/content/handwritten-text-recognition/datasets',
+                '/content/drive/MyDrive/HandwrittenTextRecognition/datasets'
+            ]
+            chosen = None
+            for cand in candidates:
+                if os.path.isdir(cand):
+                    chosen = cand
+                    break
+            if not chosen:
+                chosen = os.path.join(repo_root, input_path)
+            input_path = chosen
 
-        self.input_path = input_path
-        self.fonts_path = fonts_path
+        os.makedirs(input_path, exist_ok=True)
+        self.input_path = os.path.abspath(input_path)
+
+        # Auto-resolve fonts_path
+        if not os.path.isabs(fonts_path):
+            fonts_candidate = os.path.join(repo_root, fonts_path)
+            if os.path.isdir(fonts_candidate):
+                fonts_path = fonts_candidate
+        self.fonts_path = os.path.abspath(fonts_path) if os.path.exists(fonts_path) else fonts_path
         self.seed = seed
 
         if data is None:
@@ -173,7 +191,8 @@ class Dataset():
 
     def _extract_source_zip(self, input_path, source):
         """
-        Extracts a .zip file into a directory if the directory doesn't exist yet.
+        Extracts a .zip file into a directory if the directory doesn't exist yet,
+        and auto-downloads if missing.
 
         Parameters
         ----------
@@ -186,8 +205,26 @@ class Dataset():
         if not source.startswith(input_path):
             source = os.path.join(input_path, source)
 
-        if not os.path.exists(source) and os.path.isfile(f'{source}.zip'):
-            with zipfile.ZipFile(f'{source}.zip', 'r') as zip_ref:
+        ds_name = os.path.basename(source)
+        zip_candidate = f'{source}.zip'
+
+        # If neither the directory nor the zip file exists, try auto-downloading
+        if not os.path.exists(source) and not os.path.isfile(zip_candidate):
+            try:
+                repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                if repo_root not in sys.path:
+                    sys.path.insert(0, repo_root)
+                from download_datasets import download_dataset, DATASETS
+                if ds_name in DATASETS:
+                    print(f"📥 Dataset '{ds_name}' not found locally. Auto-downloading to {input_path}...")
+                    download_dataset(ds_name, datasets_dir=Path(input_path), auto_extract=True)
+            except Exception as dl_err:
+                print(f"Note: Auto-download for '{ds_name}' skipped: {dl_err}")
+
+        # If zip exists and directory not extracted yet, extract it
+        if not os.path.exists(source) and os.path.isfile(zip_candidate):
+            print(f"📦 Extracting {os.path.basename(zip_candidate)} into {input_path}...")
+            with zipfile.ZipFile(zip_candidate, 'r') as zip_ref:
                 zip_ref.extractall(input_path)
 
     def _import_source_module(self, source):

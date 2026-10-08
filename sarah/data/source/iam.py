@@ -65,6 +65,9 @@ class Source():
         if not os.path.isdir(self.base_path):
             return data
 
+        if not self.writers and os.path.isfile(self.forms_file_path):
+            self.writers = self._get_writers(self.forms_file_path)
+
         training_partition_data = self._read_file(self.training_file_path)
         validation_partition_data = self._read_file(self.validation_file_path)
         test_partition_data = self._read_file(self.test_file_path)
@@ -108,7 +111,10 @@ class Source():
             A list of rows.
         """
 
-        with open(file_path, 'r') as f:
+        if not file_path or not os.path.isfile(file_path):
+            return []
+
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             data = [x.strip() for x in f.readlines() if not x.startswith('#')]
 
         return data
