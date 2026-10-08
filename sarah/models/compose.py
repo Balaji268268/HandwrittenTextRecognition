@@ -533,11 +533,36 @@ class Compose():
             Filepath for loading weights. If None, restores directly from Google Drive.
         skip_mismatch : bool, optional
             Whether to skip mismatched layers.
-        """
-        if self.model is None:
-            raise ValueError("Model is not initialized.")
         colab_drive = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
         ds_name = (getattr(self.tokenizer, 'dataset_name', None) or self.experiment_name or 'model').lower().replace(' ', '_')
+
+        if self.model is None:
+            tok_candidate = os.path.join(colab_drive, f"model_{ds_name}_tokenizer.pkl")
+            if self.tokenizer is None and os.path.isfile(tok_candidate):
+                try:
+                    import pickle
+                    with open(tok_candidate, 'rb') as f:
+                        self.tokenizer = pickle.load(f)
+                    print(f"[Restored Tokenizer] Successfully loaded tokenizer from: {tok_candidate}")
+                except Exception as e:
+                    print(f"Notice: could not auto-load tokenizer: {e}")
+
+            if self.tokenizer is None:
+                from sarah.data.tokenizer import Tokenizer
+                self.tokenizer = Tokenizer()
+
+            if not self.image_shape:
+                self.image_shape = (64, 1024, 1)
+
+            if not self.recognition and not any([self.synthesis, self.segmentation, self.writer_identification]):
+                self.recognition = 'flor'
+                self.supervised_task = True
+                self.tags['compose.recognition'] = self.recognition
+                self._build_model()
+                self.compile(learning_rate=1e-3)
+
+        if self.model is None:
+            raise ValueError("Model is not initialized. Please specify recognition='flor' and image_shape.")
         if filepath is None:
             filepath = os.path.join(colab_drive, f"model_{ds_name}.weights.h5")
         clean_path = str(filepath)
