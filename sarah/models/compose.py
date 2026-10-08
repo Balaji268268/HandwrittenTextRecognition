@@ -533,6 +533,8 @@ class Compose():
             Filepath for loading weights. If None, restores directly from Google Drive.
         skip_mismatch : bool, optional
             Whether to skip mismatched layers.
+        """
+
         colab_drive = '/content/drive/MyDrive/HandwrittenTextRecognition/saved_models'
         ds_name = (getattr(self.tokenizer, 'dataset_name', None) or self.experiment_name or 'model').lower().replace(' ', '_')
 
