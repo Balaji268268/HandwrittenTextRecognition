@@ -605,26 +605,29 @@ class Dataset():
                 print(f"Image `{item['image']}` has an invalid label.")
                 return None
 
+            image = None
             if item.get('image', None):
                 if not os.path.isfile(item['image']):
                     print(f"Image `{item['image']}` does not exist.")
                     return None
 
-                try:
-                    image = utils.resize_image(image=utils.read_image(item['image'], item['bbox']),
-                                               target_width=int(len(item['text']) * self.char_width),
-                                               target_shape=self.image_shape)
+                if not self.lazy_mode:
+                    try:
+                        image = utils.resize_image(image=utils.read_image(item['image'], item['bbox']),
+                                                   target_width=int(len(item['text']) * self.char_width),
+                                                   target_shape=self.image_shape)
 
-                    if image is None or image.size < 16:
-                        invalid_size = f"{image.shape[0]}x{image.shape[1]}"
-                        print(f"Image `{item['image']}` is smaller than valid size ({invalid_size}).")
+                        if image is None or image.size < 16:
+                            invalid_size = f"{image.shape[0]}x{image.shape[1]}"
+                            print(f"Image `{item['image']}` is smaller than valid size ({invalid_size}).")
+                            return None
+
+                    except Exception:
+                        print(f"Image `{item['image']}` cannot be read.")
                         return None
-
-                except Exception:
-                    print(f"Image `{item['image']}` cannot be read.")
-                    return None
             else:
-                image = np.ones(shape=self.image_shape[:-1]) * 255
+                if not self.lazy_mode:
+                    image = np.ones(shape=self.image_shape[:-1]) * 255
 
             source = item.copy()
             encoded = item.copy()
@@ -635,9 +638,14 @@ class Dataset():
             return source, encoded
 
         for partition in data:
+            if not data[partition]:
+                samples['source'][partition] = np.array((), dtype=object)
+                samples['encoded'][partition] = np.array((), dtype=object)
+                continue
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = [executor.submit(build, x) for x in data[partition]]
-                results = [x for x in (f.result() for f in futures) if x is not None]
+                raw_results = executor.map(build, data[partition], chunksize=256)
+                results = [x for x in raw_results if x is not None]
 
             if not results:
                 samples['source'][partition] = np.array((), dtype=object)
