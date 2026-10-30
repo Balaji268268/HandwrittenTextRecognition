@@ -293,6 +293,8 @@ class Source():
             writer_id = self.writers.get(form_id, '1')
             try:
                 bbox = [int(x) for x in row[3:7]]
+                if bbox[2] <= 0 or bbox[3] <= 0:
+                    continue
             except Exception:
                 bbox = []
 
@@ -350,6 +352,8 @@ class Source():
             writer_id = self.writers.get(form_id, '1')
             try:
                 bbox = [int(x) for x in row[4:8]]
+                if bbox[2] <= 0 or bbox[3] <= 0:
+                    continue
             except Exception:
                 bbox = []
 
@@ -407,6 +411,8 @@ class Source():
             writer_id = self.writers.get(form_id, '1')
             try:
                 bbox = [int(x) for x in row[5:9]]
+                if bbox[2] <= 0 or bbox[3] <= 0:
+                    continue
             except Exception:
                 bbox = []
 

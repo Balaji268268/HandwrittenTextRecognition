@@ -470,12 +470,12 @@ def read_image(image_path, bbox=None):
     """
 
     if not image_path:
-        return np.full((1, 1), fill_value=0, dtype=np.uint8)
+        return np.full((16, 16), fill_value=255, dtype=np.uint8)
 
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
-    if image is None:
-        return image
+    if image is None or image.size == 0:
+        return np.full((16, 16), fill_value=255, dtype=np.uint8)
 
     if bbox is not None and len(bbox) == 4:
         x, y, width, height = bbox
@@ -504,13 +504,22 @@ def read_image(image_path, bbox=None):
         if isinstance(height, float):
             height = int(height * image.shape[0])
 
-        y = max(0, abs(y - 10))
-        x = max(0, abs(x - 10))
+        y_start = max(0, int(y - 5))
+        x_start = max(0, int(x - 5))
+        y_end = min(image.shape[0], int(y + max(1, height) + 5))
+        x_end = min(image.shape[1], int(x + max(1, width) + 5))
 
-        height = min(image.shape[0], (height + 10))
-        width = min(image.shape[1], (width + 10))
+        if y_end > y_start and x_end > x_start:
+            cropped = image[y_start:y_end, x_start:x_end]
+            if cropped is not None and cropped.size > 0:
+                image = cropped
+            else:
+                return np.full((16, 16), fill_value=255, dtype=np.uint8)
+        else:
+            return np.full((16, 16), fill_value=255, dtype=np.uint8)
 
-        image = image[y:y+height, x:x+width]
+    if image is None or image.size == 0:
+        return np.full((16, 16), fill_value=255, dtype=np.uint8)
 
     return np.uint8(image)
 
@@ -534,7 +543,9 @@ def resize_image(image, target_width=None, target_shape=None):
         Resized image.
     """
 
-    if image is None or image.size <= 1:
+    if image is None or getattr(image, 'size', 0) <= 1:
+        if target_shape:
+            return np.ones(shape=target_shape[:2], dtype=np.uint8) * 255
         return None
 
     src_h, src_w = image.shape[:2]

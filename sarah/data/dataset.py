@@ -740,12 +740,16 @@ class Dataset():
                     list, zip(*[(x['image'], x['text'], x['writer']) for x in batch_data]))
 
                 if batch_encoded and self.lazy_mode:
-                    image_data = [
-                        utils.resize_image(image=utils.read_image(x['image'], x['bbox']),
-                                           target_width=int(len(x['text']) * self.char_width),
-                                           target_shape=self.image_shape)
-                        for x in batch_data
-                    ]
+                    processed_images = []
+                    for x in batch_data:
+                        img = utils.read_image(x['image'], x['bbox'])
+                        resized = utils.resize_image(image=img,
+                                                    target_width=int(len(x['text']) * self.char_width),
+                                                    target_shape=self.image_shape)
+                        if resized is None or getattr(resized, 'size', 0) < 16 or not hasattr(resized, 'shape'):
+                            resized = np.ones(shape=self.image_shape[:2], dtype=np.uint8) * 255
+                        processed_images.append(resized)
+                    image_data = processed_images
 
                 writer_data = np.array(writer_data)
 
