@@ -41,6 +41,7 @@ class Source():
         self.transcription_path = os.path.join(self.base_path, 'ascii')
         self.words_file_path = os.path.join(self.transcription_path, 'words.txt')
         self.lines_file_path = os.path.join(self.transcription_path, 'lines.txt')
+        self.sentences_file_path = os.path.join(self.transcription_path, 'sentences.txt')
         self.forms_file_path = os.path.join(self.transcription_path, 'forms.txt')
 
         self.writers = self._get_writers(self.forms_file_path)
@@ -86,6 +87,13 @@ class Source():
             data['validation'] = self._get_data(lines_data, validation_partition_data)
             data['test'] = self._get_data(lines_data, test_partition_data)
 
+        elif text_level == 'sentence':
+            sentences_data = self._load_sentences_data(self.sentences_file_path)
+
+            data['training'] = self._get_data(sentences_data, training_partition_data)
+            data['validation'] = self._get_data(sentences_data, validation_partition_data)
+            data['test'] = self._get_data(sentences_data, test_partition_data)
+
         elif text_level == 'paragraph':
             lines_data = self._load_lines_data(self.lines_file_path)
             paragraphs_data = self._load_paragraphs_data(lines_data)
@@ -93,6 +101,23 @@ class Source():
             data['training'] = self._get_data(paragraphs_data, training_partition_data, group=True)
             data['validation'] = self._get_data(paragraphs_data, validation_partition_data, group=True)
             data['test'] = self._get_data(paragraphs_data, test_partition_data, group=True)
+
+        elif text_level in ['combined', 'all']:
+            lines_data = self._load_lines_data(self.lines_file_path)
+            sentences_data = self._load_sentences_data(self.sentences_file_path)
+            words_data = self._load_words_data(self.words_file_path)
+
+            for part, part_data in [('training', training_partition_data),
+                                    ('validation', validation_partition_data),
+                                    ('test', test_partition_data)]:
+                p_lines = self._get_data(lines_data, part_data)
+                p_sents = self._get_data(sentences_data, part_data)
+                p_words = self._get_data(words_data, part_data)
+
+                if part == 'test':
+                    data[part] = p_lines
+                else:
+                    data[part] = p_lines + p_sents + p_words
 
         return data
 
@@ -247,8 +272,13 @@ class Source():
             bbox = [int(x) for x in row[4:8]]
             text = ' '.join(row[-1].replace('|', ' ').replace('...', '. . .').split())
 
-            pattern = os.path.join(self.base_path, "forms**", f"{form_id}.png")
-            image_path = next(iter(glob.glob(pattern, recursive=True)), None)
+            direct_path = os.path.join(self.base_path, 'lines', ids[0], form_id, f"{row[0]}.png")
+            if os.path.isfile(direct_path):
+                image_path = direct_path
+                bbox = []
+            else:
+                pattern = os.path.join(self.base_path, "forms**", f"{form_id}.png")
+                image_path = next(iter(glob.glob(pattern, recursive=True)), None)
 
             lines_data.append({
                 'id': item_id,
@@ -259,6 +289,41 @@ class Source():
             })
 
         return lines_data
+
+    def _load_sentences_data(self, file_path):
+        sentences_data = []
+        data = self._read_file(file_path)
+
+        for row in data:
+            row = row.split()
+            if len(row) < 9:
+                continue
+
+            ids = row[0].split('-')
+            form_id = '-'.join(ids[:2])
+            item_id = '-'.join(ids[:3])
+
+            writer_id = self.writers.get(form_id, '1')
+            bbox = [int(x) for x in row[4:8]]
+            text = ' '.join(row[-1].replace('|', ' ').replace('...', '. . .').split())
+
+            direct_path = os.path.join(self.base_path, 'sentences', ids[0], form_id, f"{row[0]}.png")
+            if os.path.isfile(direct_path):
+                image_path = direct_path
+                bbox = []
+            else:
+                pattern = os.path.join(self.base_path, "forms**", f"{form_id}.png")
+                image_path = next(iter(glob.glob(pattern, recursive=True)), None)
+
+            sentences_data.append({
+                'id': item_id,
+                'image': image_path,
+                'bbox': bbox,
+                'text': text,
+                'writer': writer_id,
+            })
+
+        return sentences_data
 
     def _load_paragraphs_data(self, lines_data):
         """
