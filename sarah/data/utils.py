@@ -580,19 +580,37 @@ def resize_image(image, target_width=None, target_shape=None):
     return np.uint8(image)
 
 
-def prepare_image_for_recognition(image, target_shape=(64, 1024, 1), pad_value=255):
+def prepare_image_for_recognition(image, target_shape=(64, 1024, 1), pad_value=255, auto_trim=True, return_canvas=False):
     """
-    Prepares a single cropped line/word for recognition model input:
-    1. Ensures grayscale 2D array.
-    2. Resizes keeping aspect ratio to target line height (64).
-    3. Pads width to exact target shape (e.g. 1024) with pad_value.
-    4. Normalizes to [-1.0, 1.0] float32 tensor of shape (1, 64, 1024, 1).
+    Prepares an image for direct recognition model input:
+    1. Ensures grayscale 2D array and correct ink polarity (dark text on light background).
+    2. Optional auto-trim around ink to eliminate excess margins.
+    3. Resizes keeping aspect ratio to target line height (64).
+    4. Pads width to exact target shape (1024) with pad_value.
+    5. Normalizes to [-1.0, 1.0] float32 tensor of shape (1, 64, 1024, 1).
     """
     if image is None or getattr(image, 'size', 0) == 0:
         canvas = np.full(target_shape[:2], fill_value=pad_value, dtype=np.uint8)
     else:
         if len(image.shape) == 3:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # Ensure dark ink on light background
+        if np.mean(image) < 127:
+            image = cv2.bitwise_not(image)
+
+        # Auto-trim outer empty borders around ink
+        if auto_trim:
+            _, thresh = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+            coords = cv2.findNonZero(thresh)
+            if coords is not None and len(coords) > 20:
+                x, y, w, h = cv2.boundingRect(coords)
+                pad = 4
+                y1 = max(0, y - pad)
+                y2 = min(image.shape[0], y + h + pad)
+                x1 = max(0, x - pad)
+                x2 = min(image.shape[1], x + w + pad)
+                image = image[y1:y2, x1:x2]
 
         h, w = image.shape[:2]
         dst_h, dst_w = target_shape[:2]
@@ -609,4 +627,7 @@ def prepare_image_for_recognition(image, target_shape=(64, 1024, 1), pad_value=2
 
     norm = ((canvas.astype(np.float32) / 127.5) - 1.0)
     tensor = norm[np.newaxis, ..., np.newaxis]
+
+    if return_canvas:
+        return tensor, canvas
     return tensor
