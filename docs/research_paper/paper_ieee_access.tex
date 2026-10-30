@@ -346,18 +346,20 @@ Table~\ref{tab:benchmarks} presents the verified quantitative performance across
 
 \begin{table*}[t]
 \centering
-\caption{Verified Experimental Results Across Heterogeneous Handwriting Benchmarks}
+\caption{Verified Multi-Dataset Experimental Results Across Heterogeneous Handwriting Benchmarks (Decoding: CTC Beam Search, $W=32$)}
 \label{tab:benchmarks}
-\begin{tabular}{lcccccc}
+\begin{tabular}{llccccc}
 \toprule
-\textbf{Dataset} & \textbf{Script / Domain} & \textbf{Epochs} & \textbf{Val Edit Dist (\%)} & \textbf{Test CER (\%)} & \textbf{Test WER (\%)} & \textbf{Inference Latency} \\
+\textbf{Dataset} & \textbf{Script / Domain} & \textbf{Test Samples} & \textbf{Epochs} & \textbf{Val Edit Dist (\%)} & \textbf{Test CER (\%)} & \textbf{Test WER (\%)} \\
 \midrule
-\textbf{Parzival}       & 13th-century Middle High German  & 10 & 2.339\% & \textbf{2.48\%} & \textbf{8.53\%}  & 27.2 ms \\
-\textbf{ORAND-CAR-A}    & Bank Check Courtesy Amounts      & 35 & 2.183\% & \textbf{3.33\%} & N/A              & 26.8 ms \\
-\textbf{Saint Gall}     & 9th-century Carolingian Script   & 20 & 9.678\% & \textbf{8.38\%} & \textbf{41.62\%} & 27.5 ms \\
-\textbf{IAM Combined}   & English Multi-Writer Prose       & 15 & 5.664\% (best) & --      & --               & 28.1 ms \\
-\textbf{CVL Digits}     & Multi-Writer Digit Strings       & 35 & 6.934\% & 50.78\%         & N/A              & 25.4 ms \\
+\textbf{Parzival}       & 13th-century Middle High German (Gothic) & 1,328 lines   & 10 & 2.339\% & \textbf{2.48\%} & \textbf{8.53\%} \\
+\textbf{ORAND-CAR-A}    & Bank Check Courtesy Amounts             & 3,784 amounts & 35 & 2.183\% & \textbf{3.33\%} & N/A \\
+\textbf{Saint Gall}     & 9th-century Carolingian Latin Minuscule & 707 lines     & 20 & 9.678\% & \textbf{8.38\%} & \textbf{41.62\%} \\
+\textbf{IAM Combined}   & Multi-Writer Modern English Prose       & 966 val lines & 15 & 5.664\%*& --              & -- \\
+\textbf{CVL Digits}     & Multi-Writer Digit Strings              & 6,698 strings & 35 & 6.934\% & 50.78\%         & N/A \\
 \bottomrule
+\multicolumn{7}{l}{\footnotesize *Note: IAM Combined reports best validation normalized edit distance at epoch 12. Independent test evaluation was not executed and is preserved as unreported (--).} \\
+\multicolumn{7}{l}{\footnotesize Metric definition: CER and WER are computed as macro-averaged per-sample normalized Levenshtein distances: $\text{CER} = \frac{1}{N}\sum_{i=1}^N \frac{\text{Lev}(p_i, y_i)}{\max(1, |y_i|)}$.}
 \end{tabular}
 \end{table*}
 
