@@ -420,3 +420,4 @@ if __name__ == "__main__":
     print(f"Using weights: {args.weights}")
     print(f"Using tokenizer: {args.tokenizer}")
     run_benchmark(args.weights, args.tokenizer, args.output)
+
