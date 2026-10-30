@@ -277,7 +277,7 @@ class Compose():
         self.model.compile(learning_rate=learning_rate)
 
     def fit(self,
-            training_gen,
+            training_gen=None,
             training_steps=None,
             validation_gen=None,
             validation_steps=None,
@@ -290,7 +290,8 @@ class Compose():
             epochs=1000,
             verbose=1,
             checkpoint_path=None,
-            callbacks=None):
+            callbacks=None,
+            **kwargs):
         """
         Trains the model.
 
@@ -330,6 +331,13 @@ class Compose():
         history object
             Training and validation progress details.
         """
+
+        if training_gen is None and 'x' in kwargs:
+            training_gen = kwargs.pop('x')
+        if training_steps is None and 'steps_per_epoch' in kwargs:
+            training_steps = kwargs.pop('steps_per_epoch')
+        if validation_gen is None and 'validation_data' in kwargs:
+            validation_gen = kwargs.pop('validation_data')
 
         new_context = True
 
