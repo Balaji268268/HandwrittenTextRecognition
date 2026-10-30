@@ -560,18 +560,53 @@ def resize_image(image, target_width=None, target_shape=None):
     elif target_shape:
         dst_h, dst_w = target_shape[:2]
 
-        if src_h > dst_h or src_w > dst_w:
-            aspect_ratio = src_w / src_h
+        aspect_ratio = src_w / max(1, src_h)
 
-            if aspect_ratio < 1:
-                new_h = min(dst_h, int(dst_w / aspect_ratio))
-                new_w = int(new_h * aspect_ratio)
-            else:
-                new_w = min(dst_w, int(dst_h * aspect_ratio))
-                new_h = int(new_w / aspect_ratio)
+        if aspect_ratio < 1:
+            new_h = min(dst_h, int(dst_w / aspect_ratio))
+            new_w = max(1, int(new_h * aspect_ratio))
+        else:
+            new_w = min(dst_w, int(dst_h * aspect_ratio))
+            new_h = min(dst_h, max(1, int(new_w / aspect_ratio)))
 
-            interpolation = cv2.INTER_CUBIC if new_h > src_h or new_w > src_w else cv2.INTER_AREA
+        if new_h < dst_h and new_w < dst_w:
+            scale = dst_h / max(1.0, float(src_h))
+            new_h = dst_h
+            new_w = min(dst_w, max(1, int(round(src_w * scale))))
 
-            image = cv2.resize(src=image, dsize=(new_w, new_h), interpolation=interpolation)
+        interpolation = cv2.INTER_CUBIC if new_h > src_h or new_w > src_w else cv2.INTER_AREA
+        image = cv2.resize(src=image, dsize=(new_w, new_h), interpolation=interpolation)
 
     return np.uint8(image)
+
+
+def prepare_image_for_recognition(image, target_shape=(64, 1024, 1), pad_value=255):
+    """
+    Prepares a single cropped line/word for recognition model input:
+    1. Ensures grayscale 2D array.
+    2. Resizes keeping aspect ratio to target line height (64).
+    3. Pads width to exact target shape (e.g. 1024) with pad_value.
+    4. Normalizes to [-1.0, 1.0] float32 tensor of shape (1, 64, 1024, 1).
+    """
+    if image is None or getattr(image, 'size', 0) == 0:
+        canvas = np.full(target_shape[:2], fill_value=pad_value, dtype=np.uint8)
+    else:
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        h, w = image.shape[:2]
+        dst_h, dst_w = target_shape[:2]
+
+        scale = dst_h / max(1.0, float(h))
+        new_w = min(dst_w, max(1, int(round(w * scale))))
+        new_h = dst_h
+
+        interpolation = cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA
+        resized = cv2.resize(image, (new_w, new_h), interpolation=interpolation)
+
+        canvas = np.full((dst_h, dst_w), fill_value=pad_value, dtype=np.uint8)
+        canvas[:, :new_w] = resized
+
+    norm = ((canvas.astype(np.float32) / 127.5) - 1.0)
+    tensor = norm[np.newaxis, ..., np.newaxis]
+    return tensor
