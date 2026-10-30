@@ -147,3 +147,4 @@ Deterministic Regex?    | None            | None            | None            | 
    While autoregressive decoders generate one token at a time (introducing high latency and infinite repetition loops on degraded inputs), Connectionist Temporal Classification evaluates global sequence alignments in parallel. Our exact posterior confidence formulation ($P = \exp(\log P_{\text{CTC}}) \times 100\%$) provides mathematically bounded, well-calibrated probabilities.
 3. **The Necessity of Domain Preprocessing**:
    No deep learning model can cleanly transcribe an 11-line paragraph if the whole image is squashed into a 64px line. By coupling our **Scale-Invariant Document Engine** (valley splitting, deskewing, illumination leveling, doodle rejection) with the deep neural backbone, our system outperforms multi-million parameter foundation models across real-world operational scenarios.
+

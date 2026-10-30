@@ -204,3 +204,4 @@ if __name__ == "__main__":
     generate_fig2_preprocessing()
     generate_fig3_training_curves()
     generate_fig4_scenarios_chart()
+
