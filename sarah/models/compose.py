@@ -28,6 +28,7 @@ class Compose():
                  segmentation=None,
                  writer_identification=None,
                  image_shape=None,
+                 dataset=None,
                  tokenizer=None,
                  discriminator_steps=1,
                  generator_steps=1,
@@ -35,7 +36,8 @@ class Compose():
                  experiment_name='Default',
                  output_path='outputs',
                  gpu=0,
-                 seed=None):
+                 seed=None,
+                 **kwargs):
         """
         Initializes the Compose model with specified components.
 
@@ -79,7 +81,18 @@ class Compose():
 
         self.supervised_task = any([recognition, segmentation, writer_identification])
 
-        self.image_shape = image_shape
+        self.dataset = dataset
+        if image_shape is None:
+            if hasattr(dataset, 'image_shape') and dataset.image_shape:
+                image_shape = dataset.image_shape
+            else:
+                image_shape = (64, 1024, 1)
+
+        self.image_shape = tuple(image_shape) if image_shape else (64, 1024, 1)
+
+        if tokenizer is None and hasattr(dataset, 'tokenizer') and dataset.tokenizer:
+            tokenizer = dataset.tokenizer
+
         self.tokenizer = tokenizer
 
         self.discriminator_steps = discriminator_steps
@@ -244,6 +257,18 @@ class Compose():
                                         discriminator_steps=self.discriminator_steps,
                                         generator_steps=self.generator_steps,
                                         seed=self.seed)
+
+    @property
+    def recognition_model(self):
+        """
+        Returns the underlying Keras recognition model or self.model.
+        Supports compose.recognition_model.load_weights(...) and direct inference.
+        """
+        if hasattr(self, 'model') and self.model is not None:
+            if hasattr(self.model, 'recognition') and self.model.recognition is not None:
+                return self.model.recognition
+            return self.model
+        return None
 
     def compile(self, learning_rate=None, run_context=None):
         """
