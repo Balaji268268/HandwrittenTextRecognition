@@ -9,15 +9,19 @@ class Source():
     Requires implementation of `fetch_data`, returning a dictionary with
         'training', 'validation', and 'test' keys, each mapping to a list of data entries.
 
-    Each data entry is a dictionary with keys 'image', 'bbox', 'text', and 'writer':
+    Each data entry is a dictionary with keys 'id', 'image', 'bbox', 'text', and 'writer':
+        'id' : str
+            unique item ID.
+        'form_id' : str
+            parent form ID.
         'image' : str
-            path to the image.
+            path to the image file.
         'bbox' : list
-            bounding box coordinates [x, y, h, w] (empty if no bbox).
+            bounding box coordinates [x, y, w, h] (empty if pre-cropped).
         'text' : str
-            text content with '\n' as line breaks.
+            text transcription.
         'writer' : str
-            writer's unique ID ('1' for unique writer).
+            writer's unique ID.
     """
 
     def __init__(self, artifact_path):
@@ -45,6 +49,47 @@ class Source():
         self.forms_file_path = os.path.join(self.transcription_path, 'forms.txt')
 
         self.writers = self._get_writers(self.forms_file_path)
+        self.image_cache = {}
+        if os.path.isdir(self.base_path):
+            self._index_images()
+
+    def _index_images(self):
+        """
+        Index image files by stem (filename without extension) across all directories
+        (lines, sentences, words, formsA-D, formsE-H, formsI-Z, forms, etc.)
+        for O(1) instant resolution.
+        """
+        if not os.path.isdir(self.base_path):
+            return
+
+        valid_exts = ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp')
+        skip_dirs = {'ascii', 'xml', 'largewriterindependenttextlinerecognitiontask'}
+
+        for root, dirs, files in os.walk(self.base_path):
+            if os.path.basename(root).lower() in skip_dirs:
+                continue
+            for f in files:
+                name_lower = f.lower()
+                if any(name_lower.endswith(ext) for ext in valid_exts):
+                    stem = os.path.splitext(f)[0]
+                    self.image_cache[stem] = os.path.join(root, f)
+
+    def _resolve_image(self, item_id, form_id, default_bbox):
+        """
+        Returns (image_path, bbox).
+        If cropped image exists (item_id in image_cache), returns (path, []).
+        Else if full form image exists (form_id in image_cache), returns (form_path, default_bbox).
+        Else returns (None, None).
+        """
+        direct_path = self.image_cache.get(item_id)
+        if direct_path and os.path.isfile(direct_path):
+            return direct_path, []
+
+        form_path = self.image_cache.get(form_id)
+        if form_path and os.path.isfile(form_path):
+            return form_path, default_bbox
+
+        return None, None
 
     def fetch_data(self, text_level):
         """
@@ -65,6 +110,9 @@ class Source():
 
         if not os.path.isdir(self.base_path):
             return data
+
+        if not self.image_cache:
+            self._index_images()
 
         if not self.writers and os.path.isfile(self.forms_file_path):
             self.writers = self._get_writers(self.forms_file_path)
@@ -147,15 +195,16 @@ class Source():
     def _get_data(self, data, partition_data, group=False):
         """
         Filter the given data based on partition data.
+        Matches exact item IDs or form IDs (for sentences/words/paragraphs).
 
         Parameters
         ----------
         data : list of dict
-            The data to filter, each with an 'id' key.
+            The data to filter, each with 'id' and 'form_id'.
         partition_data : list
             The IDs to match against.
         group : bool, optional
-            Indicates whether to group the image ID.
+            Indicates whether to group by form ID.
 
         Returns
         -------
@@ -163,10 +212,23 @@ class Source():
             The filtered data matching the partition IDs.
         """
 
-        if group:
-            partition_data = ['-'.join(x.split('-')[:2]) for x in partition_data]
+        if not data or not partition_data:
+            return []
 
-        filtered = [x for x in data if x['id'] in partition_data]
+        exact_set = set(partition_data)
+        form_set = {'-'.join(x.split('-')[:2]) for x in partition_data}
+
+        filtered = []
+        for x in data:
+            item_id = x.get('id', '')
+            form_id = x.get('form_id') or '-'.join(item_id.split('-')[:2])
+
+            if group:
+                if form_id in form_set:
+                    filtered.append(x)
+            else:
+                if item_id in exact_set or form_id in form_set:
+                    filtered.append(x)
 
         return filtered
 
@@ -217,21 +279,36 @@ class Source():
 
         for row in data:
             row = row.split()
+            if len(row) < 9:
+                continue
+
+            # Skip segmentation errors ('err')
+            if row[1] != 'ok':
+                continue
 
             ids = row[0].split('-')
             form_id = '-'.join(ids[:2])
-            item_id = '-'.join(ids[:3])
-            writer_id = self.writers.get(form_id, '1')
-            bbox = []
-            text = ' '.join(row[-1].replace('|', ' ').replace('...', '. . .').split())
+            item_id = row[0]
 
-            word_path = os.path.join('words', ids[0], form_id, f"{row[0]}.png")
-            image_path = os.path.join(self.base_path, word_path)
+            writer_id = self.writers.get(form_id, '1')
+            try:
+                bbox = [int(x) for x in row[3:7]]
+            except Exception:
+                bbox = []
+
+            text = ' '.join(row[-1].replace('|', ' ').replace('...', '. . .').split())
+            if not text:
+                continue
+
+            image_path, final_bbox = self._resolve_image(item_id, form_id, bbox)
+            if not image_path:
+                continue
 
             words_data.append({
                 'id': item_id,
+                'form_id': form_id,
                 'image': image_path,
-                'bbox': bbox,
+                'bbox': final_bbox,
                 'text': text,
                 'writer': writer_id,
             })
@@ -260,30 +337,36 @@ class Source():
 
         for row in data:
             row = row.split()
+            if len(row) < 8:
+                continue
 
             ids = row[0].split('-')
             form_id = '-'.join(ids[:2])
-            item_id = '-'.join(ids[:3])
+            item_id = row[0]
 
             if item_id in exclude_data:
                 continue
 
             writer_id = self.writers.get(form_id, '1')
-            bbox = [int(x) for x in row[4:8]]
-            text = ' '.join(row[-1].replace('|', ' ').replace('...', '. . .').split())
-
-            direct_path = os.path.join(self.base_path, 'lines', ids[0], form_id, f"{row[0]}.png")
-            if os.path.isfile(direct_path):
-                image_path = direct_path
+            try:
+                bbox = [int(x) for x in row[4:8]]
+            except Exception:
                 bbox = []
-            else:
-                pattern = os.path.join(self.base_path, "forms**", f"{form_id}.png")
-                image_path = next(iter(glob.glob(pattern, recursive=True)), None)
+
+            transcription = ' '.join(row[8:]) if len(row) > 8 else row[-1]
+            text = ' '.join(transcription.replace('|', ' ').replace('...', '. . .').split())
+            if not text:
+                continue
+
+            image_path, final_bbox = self._resolve_image(item_id, form_id, bbox)
+            if not image_path:
+                continue
 
             lines_data.append({
                 'id': item_id,
+                'form_id': form_id,
                 'image': image_path,
-                'bbox': bbox,
+                'bbox': final_bbox,
                 'text': text,
                 'writer': writer_id,
             })
@@ -291,6 +374,20 @@ class Source():
         return lines_data
 
     def _load_sentences_data(self, file_path):
+        """
+        Loads the sentences data.
+
+        Parameters
+        ----------
+        file_path : str
+            The path to the file containing the sentences data.
+
+        Returns
+        -------
+        list
+            A list of sentences data.
+        """
+
         sentences_data = []
         data = self._read_file(file_path)
 
@@ -299,26 +396,34 @@ class Source():
             if len(row) < 9:
                 continue
 
+            # Skip segmentation errors
+            if 'err' in row[1:3]:
+                continue
+
             ids = row[0].split('-')
             form_id = '-'.join(ids[:2])
-            item_id = '-'.join(ids[:3])
+            item_id = row[0]
 
             writer_id = self.writers.get(form_id, '1')
-            bbox = [int(x) for x in row[4:8]]
-            text = ' '.join(row[-1].replace('|', ' ').replace('...', '. . .').split())
-
-            direct_path = os.path.join(self.base_path, 'sentences', ids[0], form_id, f"{row[0]}.png")
-            if os.path.isfile(direct_path):
-                image_path = direct_path
+            try:
+                bbox = [int(x) for x in row[5:9]]
+            except Exception:
                 bbox = []
-            else:
-                pattern = os.path.join(self.base_path, "forms**", f"{form_id}.png")
-                image_path = next(iter(glob.glob(pattern, recursive=True)), None)
+
+            transcription = ' '.join(row[9:]) if len(row) > 9 else row[-1]
+            text = ' '.join(transcription.replace('|', ' ').replace('...', '. . .').split())
+            if not text:
+                continue
+
+            image_path, final_bbox = self._resolve_image(item_id, form_id, bbox)
+            if not image_path:
+                continue
 
             sentences_data.append({
                 'id': item_id,
+                'form_id': form_id,
                 'image': image_path,
-                'bbox': bbox,
+                'bbox': final_bbox,
                 'text': text,
                 'writer': writer_id,
             })
@@ -343,28 +448,28 @@ class Source():
         paragraphs_data = {}
 
         for line in lines_data:
-            ids = os.path.basename(line['id']).split('-')
-            form_id = '-'.join(ids[:2])
-
-            pattern = os.path.join(self.base_path, "forms**", f"{form_id}.png")
-            image_path = next(iter(glob.glob(pattern, recursive=True)), None)
+            form_id = line.get('form_id') or '-'.join(line['id'].split('-')[:2])
+            form_path = self.image_cache.get(form_id)
+            if not form_path:
+                continue
 
             bbox = [
-                line['bbox'][0],
-                line['bbox'][1],
-                line['bbox'][2] + line['bbox'][0],
-                line['bbox'][3] + line['bbox'][1],
+                line['bbox'][0] if line['bbox'] else 0,
+                line['bbox'][1] if line['bbox'] else 0,
+                (line['bbox'][2] + line['bbox'][0]) if line['bbox'] else 0,
+                (line['bbox'][3] + line['bbox'][1]) if line['bbox'] else 0,
             ]
 
             content = {
                 'id': form_id,
-                'image': image_path,
+                'form_id': form_id,
+                'image': form_path,
                 'bbox': bbox,
                 'text': '',
                 'writer': line['writer'],
             }
 
-            paragraph = paragraphs_data.setdefault(image_path, content)
+            paragraph = paragraphs_data.setdefault(form_path, content)
 
             paragraph['bbox'] = [
                 min(paragraph['bbox'][0], bbox[0]),
