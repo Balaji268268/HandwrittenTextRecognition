@@ -207,37 +207,47 @@ Text lines consistently exhibit aspect ratios $AR_{\text{true}} \ge 2.2$, while 
 \subsection{Stage 2: Deep Gated-CNN + Attention + BiLSTM Architecture}
 Each extracted text line strip is normalized to a fixed height $H_{\text{in}} = 64\text{ px}$ with aspect-ratio preservation and padded to maximum width $W_{\text{in}} = 1024\text{ px}$ with constant background padding ($255$). The normalized tensor $\mathbf{X} \in \mathbb{R}^{64 \times 1024 \times 1}$ is fed into the deep neural network.
 
-The network architecture, implemented in PySarah Flor \cite{flor2020gated}, is profiled in Table~\ref{tab:model_summary}. It contains exactly \textbf{1,583,848 parameters} ($1,582,967$ trainable, $917$ non-trainable), partitioned into a convolutional gated encoder ($501,988$ parameters) and an attention-guided recurrent decoder ($1,081,859$ parameters).
+The network architecture, implemented in PySarah Flor \cite{flor2020gated}, is profiled in Table~\ref{tab:model_summary}. For the IAM vocabulary ($C=83$), it contains exactly \textbf{1,583,847 parameters} ($1,582,967$ trainable, $880$ non-trainable), partitioned into a convolutional gated encoder ($501,988$ parameters) and an attention-guided recurrent decoder ($1,081,859$ parameters). Across all evaluated vocabulary sizes $C = |\Sigma| + 1$, the shared feature-and-recurrent backbone possesses exactly \textbf{1,562,516 parameters} ($1,561,636$ trainable, $880$ non-trainable), while the final linear projection layer maps the 256-dimensional recurrent representations to class logits using $(256 \times C) + C = 257 \times C$ parameters, yielding the exact closed-form relation $P_{\text{total}} = 1,562,516 + 257C$.
 
 \begin{table}[h]
 \centering
-\caption{Layer-by-Layer Architectural Profile of the Proposed $1.58\text{M}$ Parameter Model}
+\caption{Layer-by-Layer Architectural Profile of the Proposed Framework ($C=83$)}
 \label{tab:model_summary}
 \begin{tabular}{llcc}
 \toprule
 \textbf{Subsystem} & \textbf{Layer / Operation} & \textbf{Output Shape} & \textbf{Param Count} \\
 \midrule
-\multirow{4}{*}{\textbf{Encoder}} 
-& Input Image & $(64, 1024, 1)$ & 0 \\
-& Conv Block 1 + Pool & $(32, 512, 16)$ & $480$ \\
-& GatedConv Block 2 + Pool & $(16, 256, 32)$ & $9,504$ \\
-& GatedConv Block 3 + Pool & $(8, 256, 64)$ & $37,440$ \\
-& GatedConv Block 4 + Pool & $(4, 256, 128)$ & $148,608$ \\
-& GatedConv Block 5 + Pool & $(2, 256, 256)$ & $305,956$ \\
+\multirow{8}{*}{\textbf{Encoder}} 
+& Input Text-Line Image & $(64, 1024, 1)$ & 0 \\
+& Conv1 (8 filters, $3\times 3$) + BN + Swish & $(64, 1024, 8)$ & $112$ \\
+& Residual GatedConv Block 1 & $(64, 1024, 8)$ & $586$ \\
+& Conv2 (16 filters) + BN + Pool $(2,2)$ & $(32, 512, 16)$ & $1,232$ \\
+& Residual GatedConv Block 2 + Drop(0.1) & $(32, 512, 16)$ & $2,322$ \\
+& Conv3 (32 filters) + BN + Pool $(2,1)$ & $(16, 512, 32)$ & $4,768$ \\
+& Residual GatedConv Block 3 + Drop(0.1) & $(16, 512, 32)$ & $9,250$ \\
+& Conv4 (64 filters) + BN + Pool $(2,1)$ & $(8, 512, 64)$ & $18,752$ \\
+& Residual GatedConv Block 4 + Drop(0.1) & $(8, 512, 64)$ & $36,930$ \\
+& Conv5 (80 filters) + BN + Pool $(2,2)$ & $(4, 256, 80)$ & $46,480$ \\
+& Residual GatedConv Block 5 + Drop(0.1) & $(4, 256, 80)$ & $57,682$ \\
+& Conv6 (112 filters) + BN + Pool $(2,1)$ & $(2, 256, 112)$ & $81,200$ \\
+& Residual GatedConv Block 6 + Drop(0.1) & $(2, 256, 112)$ & $113,010$ \\
+& Conv7 (128 filters) + BN + Pool $(2,1)$ & $(1, 256, 128)$ & $129,664$ \\
 \midrule
-\multicolumn{2}{l}{\textbf{Encoder Total (Feature Extractor)}} & & \textbf{501,988} \\
+\multicolumn{2}{l}{\textbf{Encoder Subtotal (Feature Extractor)}} & & \textbf{501,988} \\
 \midrule
-\multirow{5}{*}{\textbf{Decoder}} 
-& Squeeze to Sequence & $(256, 256)$ & 0 \\
-& Multi-Head Attention ($h=2$) & $(256, 256)$ & $131,584$ \\
-& BiLSTM Layer 1 ($128$ dir) & $(256, 256)$ & $394,240$ \\
-& BiLSTM Layer 2 ($128$ dir) & $(256, 256)$ & $394,240$ \\
-& BiLSTM Layer 3 ($128$ dir) & $(256, 256)$ & $140,544$ \\
-& Dense Vocabulary Projection & $(256, 83)$ & $21,248$ \\
+\multirow{7}{*}{\textbf{Decoder}} 
+& Multi-Head Attention ($h=2, d_k=8$) & $(1, 256, 128)$ & $8,368$ \\
+& Reshape to Sequence & $(256, 128)$ & 0 \\
+& Stacked BiLSTM Layer 1 ($128$ dir $\times 2$) & $(256, 256)$ & $263,168$ \\
+& Stacked BiLSTM Layer 2 ($128$ dir $\times 2$) & $(256, 256)$ & $394,240$ \\
+& Stacked BiLSTM Layer 3 ($128$ dir $\times 2$) & $(256, 256)$ & $394,240$ \\
+& Layer Normalization ($256$ units) & $(1, 256, 256)$ & $512$ \\
+& Dense Class Projection ($257 \times C$) & $(1, 256, 83)$ & $21,331$ \\
 \midrule
-\multicolumn{2}{l}{\textbf{Decoder Total (Sequence Modeling)}} & & \textbf{1,081,859} \\
+\multicolumn{2}{l}{\textbf{Decoder Subtotal (Sequence Modeling)}} & & \textbf{1,081,859} \\
 \midrule
-\multicolumn{2}{l}{\textbf{Grand Total Parameters}} & & \textbf{1,583,848} \\
+\multicolumn{2}{l}{\textbf{Shared Backbone Total (Prior to Projection)}} & & \textbf{1,562,516} \\
+\multicolumn{2}{l}{\textbf{Grand Total Parameters ($C=83$, IAM)}} & & \textbf{1,583,847} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -253,7 +263,7 @@ Standard convolutional layers apply a static linear filter bank followed by a no
 \begin{equation}
 \mathbf{Y}_{\text{Gated}} = \mathbf{F} \odot \mathbf{G}
 \end{equation}
-where $\odot$ denotes element-wise Hadamard multiplication. The gating tensor $\mathbf{G} \in [0, 1]$ acts as a continuous spatial attention mask, dynamically setting background pixels to zero while passing ink stroke features through to subsequent layers. Five convolutional stages progressively reduce the spatial dimensions to $\mathbf{T} \in \mathbb{R}^{B \times 256 \times 256}$.
+where $\odot$ denotes element-wise Hadamard multiplication. The gating tensor $\mathbf{G} \in [0, 1]$ acts as a continuous spatial attention mask, dynamically setting background pixels to zero while passing ink stroke features through to subsequent layers. Seven convolutional stages with six interleaved residual Gated-CNN blocks progressively reduce spatial dimensions to $(1, 256, 128)$.
 
 \subsubsection{Multi-Head Self-Attention (MHSA)}
 To capture global line context and stroke continuity across long text lines, a 2-head Multi-Head Self-Attention layer is positioned immediately following the convolutional backbone:
@@ -263,7 +273,7 @@ To capture global line context and stroke continuity across long text lines, a 2
 \begin{equation}
 \text{MHSA}(\mathbf{T}) = \text{Concat}(\text{head}_1, \dots, \text{head}_h)\mathbf{W}^O
 \end{equation}
-with key dimension $d_k = 128$ and $h = 2$ heads, followed by residual addition and layer normalization:
+with key dimension $d_k = d_v = 8$ and $h = 2$ heads ($8,368$ parameters), followed by residual addition and layer normalization:
 \begin{equation}
 \mathbf{T}_{\text{attn}} = \text{LayerNorm}(\mathbf{T} + \text{MHSA}(\mathbf{T}))
 \end{equation}
@@ -359,6 +369,7 @@ Table~\ref{tab:benchmarks} presents the verified quantitative performance across
 \textbf{CVL Digits}     & Multi-Writer Digit Strings              & 6,698 strings & 35 & 6.934\% & 50.78\%         & N/A \\
 \bottomrule
 \multicolumn{7}{l}{\footnotesize *Note: IAM Combined reports best validation normalized edit distance at epoch 12. Independent test evaluation was not executed and is preserved as unreported (--).} \\
+\multicolumn{7}{l}{\footnotesize **Note on Provenance: Saint Gall test evaluation is documented via frozen execution output of Cell 28 (Epoch 14 restored, 707 lines); binary weights file was omitted during Colab export.} \\
 \multicolumn{7}{l}{\footnotesize Metric definition: CER and WER are computed as macro-averaged per-sample normalized Levenshtein distances: $\text{CER} = \frac{1}{N}\sum_{i=1}^N \frac{\text{Lev}(p_i, y_i)}{\max(1, |y_i|)}$.}
 \end{tabular}
 \end{table*}

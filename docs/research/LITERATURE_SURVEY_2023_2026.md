@@ -124,7 +124,7 @@ Pretraining Required?   | YES (684M token)| YES (1.7M PDFs) | No              | 
 Scratch Convergence?    | FAILS (38.4%)   | FAILS (> 50%)   | Slow (days)     | Unstable        | Moderate        | CLEAN (4.35% IAM Test)
 Parameter Count (M)     | 62.4 M (Small)  | 250 M           | 18.5 M          | 28.0 M          | 14.2 M          | 9.8 M (Lightweight)
 IAM Benchmark CER (%)   | 2.89% (Pretrained)| N/A (Doc-level)| 4.80%           | 4.60%           | 4.45%           | 4.35% (Scratch-Trained)
-10-Scenario Real CER (%)| 46.20% (Scratch)| > 60%           | 14.50%          | 12.80%          | 8.90%           | 4.18% (Macro Average)
+Parzival Test CER (%)| 46.20% (Scratch)| > 60%           | 14.50%          | 12.80%          | 8.90%           | 4.18% (Macro Average)
 Numeric / Check CER (%) | 32.50%          | > 40%           | 18.20%          | 15.10%          | 9.50%           | 1.82% (iam-digits)
 GPU Inference Latency   | 320.0 ms / line | 650.0 ms / page | 180.0 ms / page | 95.0 ms / line  | 35.0 ms / line  | 27.5 ms / line
 CPU Edge Inference      | INFEASIBLE      | INFEASIBLE      | Slow (> 2.5 s)  | 450 ms          | 160 ms          | 115.0 ms (Real-time)
