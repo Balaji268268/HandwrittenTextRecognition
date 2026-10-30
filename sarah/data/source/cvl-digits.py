@@ -72,6 +72,16 @@ class Source():
             data['training'] = [process_file(file_path) for file_path in training_files]
 
             test_files = glob.glob(self.test_path, recursive=True)
-            data['test'] = [process_file(file_path) for file_path in test_files]
+            # Ensure validation partition is populated
+            if len(test_files) > 1500:
+                data['validation'] = [process_file(file_path) for file_path in test_files[:1000]]
+                data['test'] = [process_file(file_path) for file_path in test_files[1000:]]
+            elif len(data['training']) > 50:
+                n_val = max(1, int(len(data['training']) * 0.15))
+                data['validation'] = data['training'][-n_val:]
+                data['training'] = data['training'][:-n_val]
+                data['test'] = [process_file(file_path) for file_path in test_files]
+            else:
+                data['test'] = [process_file(file_path) for file_path in test_files]
 
         return data

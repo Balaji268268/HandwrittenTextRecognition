@@ -106,6 +106,20 @@ DATASETS = {
         'text_level': 'line',
         'image_shape': (64, 1024, 1),
         'filename': 'bressay.zip'
+    },
+    'digits': {
+        'desc': 'Unified Digits database (cvl-digits + orand-car: ~19.6k samples)',
+        'composite': ['cvl-digits', 'orand-car'],
+        'text_level': 'line',
+        'image_shape': (64, 1024, 1),
+        'filename': 'digits'
+    },
+    'iam-digits': {
+        'desc': 'Combined IAM Text + Digits database (~91k samples)',
+        'composite': ['iam', 'cvl-digits', 'orand-car'],
+        'text_level': 'line',
+        'image_shape': (64, 1024, 1),
+        'filename': 'iam-digits'
     }
 }
 
@@ -129,6 +143,14 @@ def check_status(name, datasets_dir=None):
     info = DATASETS.get(name)
     if not info:
         return 'UNKNOWN'
+
+    if 'composite' in info:
+        statuses = [check_status(sub, datasets_dir) for sub in info['composite']]
+        if all(s == 'EXTRACTED' for s in statuses):
+            return 'EXTRACTED'
+        elif any(s in ('EXTRACTED', 'ZIP_READY') for s in statuses):
+            return 'PARTIAL'
+        return 'MISSING'
 
     dir_path = datasets_dir / name
     zip_path = datasets_dir / info['filename']
@@ -173,6 +195,16 @@ def download_dataset(name, datasets_dir=None, force=False, auto_extract=True):
         return False
 
     info = DATASETS[name]
+
+    if 'composite' in info:
+        print(f"📦 Handling composite dataset '{name}' ({len(info['composite'])} sub-datasets)...")
+        success = True
+        for sub in info['composite']:
+            if check_status(sub, datasets_dir) != 'EXTRACTED':
+                if not download_dataset(sub, datasets_dir, force=force, auto_extract=auto_extract):
+                    success = False
+        return success
+
     dest = datasets_dir / info['filename']
 
     if dest.exists() and not force:

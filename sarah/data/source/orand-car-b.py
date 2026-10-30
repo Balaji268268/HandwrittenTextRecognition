@@ -70,10 +70,18 @@ class Source():
             }
 
         if text_level == 'word' or text_level == 'line':
-            with open(self.training_file_path, 'r') as training_file:
-                data['training'] = [process_row(row, self.training_path) for row in training_file.readlines()]
+            if os.path.isfile(self.training_file_path):
+                with open(self.training_file_path, 'r', encoding='utf-8', errors='ignore') as training_file:
+                    raw_train = [process_row(row, self.training_path) for row in training_file.readlines()]
+                if len(raw_train) > 100:
+                    n_val = max(1, int(len(raw_train) * 0.15))
+                    data['validation'] = raw_train[-n_val:]
+                    data['training'] = raw_train[:-n_val]
+                else:
+                    data['training'] = raw_train
 
-            with open(self.test_file_path, 'r') as test_file:
-                data['test'] = [process_row(row, self.test_path) for row in test_file.readlines()]
+            if os.path.isfile(self.test_file_path):
+                with open(self.test_file_path, 'r', encoding='utf-8', errors='ignore') as test_file:
+                    data['test'] = [process_row(row, self.test_path) for row in test_file.readlines()]
 
         return data
