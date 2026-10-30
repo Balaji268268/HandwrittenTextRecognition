@@ -633,43 +633,106 @@ def prepare_image_for_recognition(image, target_shape=(64, 1024, 1), pad_value=2
     return tensor
 
 
-def extract_text_lines(image, min_aspect_ratio=1.8, min_width=15, min_height=8, return_boxes=False):
+def estimate_document_scale(gray):
     """
-    Intelligently extracts individual text lines from an image or card:
+    Estimates the median character height (scale) of a document image dynamically.
+    Enables true scale-invariant processing across phone photos (3000px) and thumbnails (150px).
+    """
+    h, w = gray.shape[:2]
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary)
+    heights = [stats[i, 3] for i in range(1, num_labels) if 6 <= stats[i, 3] <= 0.6 * h and stats[i, 2] <= 0.6 * w]
+    if len(heights) >= 3:
+        return float(np.median(heights))
+    return max(16.0, float(h) / 10.0)
 
-    1. Single-Line Detection:
-       If the image/crop is already a single line (aspect ratio >= 2.5 or height <= 55),
-       returns [image] immediately with zero breaking or splitting.
 
-    2. Dense Multi-Line Documents / Paragraphs:
-       If the document contains 4+ lines (like whole pages or letters), applies adaptive
-       horizontal projection profile valley splitting to isolate each line without cross-line bleeding.
+def normalize_illumination(gray, med_h=None):
+    """
+    Normalizes uneven shadows, corner lighting, flash glare, and yellowed paper.
+    Uses morphological background closure scaled to estimated text size.
+    """
+    if med_h is None:
+        med_h = estimate_document_scale(gray)
+    k_size = max(15, int(med_h * 4))
+    if k_size % 2 == 0:
+        k_size += 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k_size, k_size))
+    bg = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
+    norm = np.clip((gray.astype(np.float32) / np.maximum(bg.astype(np.float32), 1.0)) * 255.0, 0, 255).astype(np.uint8)
+    return norm
 
-    3. Card / Note Mode with Doodles:
-       Applies horizontal morphology (RLSA), merges words on the same horizontal baseline,
-       and automatically detects and skips non-text drawings, doodles, or icons (aspect ratio ~ 1.0)
-       so doodles (like the smiling sun) are never fed to the CTC decoder.
 
-    Parameters
-    ----------
-    image : ndarray
-        Input image (grayscale or BGR).
-    min_aspect_ratio : float
-        Minimum width / height ratio to qualify as a horizontal text line.
-    min_width : int
-        Minimum width in pixels for a valid text line candidate.
-    min_height : int
-        Minimum height in pixels for a valid text line candidate.
-    return_boxes : bool
-        If True, also returns the bounding boxes (x, y, w, h) for visualization.
+def deskew_document(gray):
+    """
+    Detects and corrects document skew angle within [-30, +30] degrees.
+    Essential for mobile camera captures and tilted handwriting pads.
+    """
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    coords = np.column_stack(np.where(thresh > 0))
+    if len(coords) < 100:
+        return gray, 0.0
+    angle = cv2.minAreaRect(coords)[-1]
+    if angle < -45:
+        angle = -(90 + angle)
+    else:
+        angle = -angle
+    if 0.8 < abs(angle) < 30.0:
+        h, w = gray.shape[:2]
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, angle, 1.0)
+        deskewed = cv2.warpAffine(gray, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+        return deskewed, angle
+    return gray, 0.0
 
-    Returns
-    -------
-    tuple (lines, mode, skipped_items[, boxes])
-        lines: list of np.ndarray line crops
-        mode: 'single_line' or 'multi_line'
-        skipped_items: list of tuples (name, reason, detail)
-        boxes (optional): list of bounding boxes (x, y, w, h) in original coordinate space
+
+def suppress_ruled_lines(binary, min_line_ratio=0.35):
+    """
+    Detects and suppresses pre-printed horizontal ruled lines on notebook paper and
+    doctor prescription pads so lines don't bridge words vertically.
+    """
+    h, w = binary.shape[:2]
+    k_w = max(20, int(w * min_line_ratio))
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k_w, 1))
+    lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+    return cv2.subtract(binary, lines)
+
+
+def postprocess_transcription(text):
+    """
+    Production-grade text normalizer for medical shorthand, dosages, numbers, and punctuation:
+    - Normalizes dosages (e.g. '500 mg' -> '500mg', '10 ml' -> '10ml')
+    - Standardizes prescription frequency ('1 - 0 - 1' -> '1-0-1', 'b . i . d .' -> 'b.i.d.')
+    - Cleans punctuation spacing and duplicate spaces
+    """
+    if not text:
+        return ""
+    import re
+    # Clean up redundant spaces
+    cleaned = re.sub(r'\s+', ' ', text).strip()
+    # Prescription frequency: 1-0-1 or 1-1-1
+    cleaned = re.sub(r'(\d)\s*-\s*(\d)\s*-\s*(\d)', r'\1-\2-\3', cleaned)
+    # Dosages: 500 mg, 250 mg, 10 ml
+    cleaned = re.sub(r'(\d+)\s*(mg|ml|mcg|gm|kg|tabs?|caps?)\b', r'\1\2', cleaned, flags=re.IGNORECASE)
+    # Medical Latin abbreviations
+    cleaned = re.sub(r'\bb\s*\.\s*i\s*\.\s*d\b', 'b.i.d.', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\bt\s*\.\s*i\s*\.\s*d\b', 't.i.d.', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\bq\s*\.\s*d\b', 'q.d.', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\bp\s*\.\s*r\s*\.\s*n\b', 'p.r.n.', cleaned, flags=re.IGNORECASE)
+    # Currency amounts: $ 50 -> $50
+    cleaned = re.sub(r'([\$£€₹])\s*(\d)', r'\1\2', cleaned)
+    return cleaned
+
+
+def extract_text_lines(image, min_aspect_ratio=1.8, min_width=15, min_height=8, return_boxes=False, auto_deskew=True, auto_illumination=True):
+    """
+    Production-grade scale-invariant document & handwriting line extractor.
+
+    Handles ALL real-world scenarios:
+    1. Single-Line & Digit strings: Direct bypass with zero splitting.
+    2. Dense Multi-Line Documents: Historical letters, exam sheets, doctor prescriptions.
+    3. Cards & Notes with Doodles: Smiling suns, icons, and non-text drawings are automatically skipped.
+    4. Poor Camera Photos: Corrects uneven illumination, phone deskew, and ruled notebook lines.
     """
     if image is None or getattr(image, 'size', 0) == 0:
         if return_boxes:
@@ -684,12 +747,23 @@ def extract_text_lines(image, min_aspect_ratio=1.8, min_width=15, min_height=8, 
     if np.mean(gray) < 127:
         gray = cv2.bitwise_not(gray)
 
-    # Auto-trim outer margins first to check actual ink dimensions
+    # 1. Estimate document scale (median character height) dynamically
+    med_h = estimate_document_scale(gray)
+
+    # 2. Illumination compensation for uneven shadows / phone flash
+    if auto_illumination:
+        gray = normalize_illumination(gray, med_h)
+
+    # 3. Deskew tilt if photo was taken at an angle
+    if auto_deskew:
+        gray, angle = deskew_document(gray)
+
+    # 4. Auto-trim outer empty borders around ink
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     coords = cv2.findNonZero(thresh)
     if coords is not None and len(coords) > 20:
         x_ink, y_ink, w_ink, h_ink = cv2.boundingRect(coords)
-        pad = 4
+        pad = max(2, int(med_h * 0.2))
         y1 = max(0, y_ink - pad)
         y2 = min(gray.shape[0], y_ink + h_ink + pad)
         x1 = max(0, x_ink - pad)
@@ -702,84 +776,103 @@ def extract_text_lines(image, min_aspect_ratio=1.8, min_width=15, min_height=8, 
 
     src_h, src_w = ink_crop.shape[:2]
 
-    # 1. Direct Single-Line Mode (single number, single word, or single sentence)
-    if src_h <= 55 or (src_w / max(1, src_h)) >= 2.5:
-        if return_boxes:
-            return [ink_crop], 'single_line', [], [(offset_x, offset_y, src_w, src_h)]
-        return [ink_crop], 'single_line', []
+    # 5. Scale-invariant Single-Line Bypass
+    aspect = src_w / max(1, src_h)
+    if src_h <= int(med_h * 2.2) or aspect >= 2.5:
+        _, bin_check = cv2.threshold(ink_crop, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        h_proj = np.sum(bin_check > 0, axis=1)
+        w_size = max(3, int(med_h * 0.4))
+        if w_size % 2 == 0:
+            w_size += 1
+        smooth = np.convolve(h_proj, np.ones(w_size)/w_size, mode='same')
+        peaks = [y for y in range(1, src_h-1) if smooth[y] > smooth[y-1] and smooth[y] >= smooth[y+1] and smooth[y] > 0.3 * np.max(smooth)]
+        if len(peaks) <= 1:
+            if return_boxes:
+                return [ink_crop], 'single_line', [], [(offset_x, offset_y, src_w, src_h)]
+            return [ink_crop], 'single_line', []
 
-    # 2. Binary segmentation & outer photo-border removal
+    # 6. Binary cleanup & suppress thin photo edges
     _, binary = cv2.threshold(ink_crop, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary)
     clean_bin = binary.copy()
     for i in range(1, num_labels):
-        x, y, w, h, area = stats[i]
-        if (x <= 1 or x + w >= src_w - 1) and (h > 0.4 * src_h or w < 5):
+        bx, by, bw, bh, area = stats[i]
+        if (bx <= 1 or bx + bw >= src_w - 1) and (bh > 0.4 * src_h or bw < 4):
             clean_bin[labels == i] = 0
 
-    # Helper for valley splitting
-    def split_dense_paragraph_by_valleys(crop_gray, crop_bin):
-        ch, cw = crop_gray.shape[:2]
-        h_proj = np.sum(crop_bin > 0, axis=1)
-        w_size = max(3, ch // 25)
-        if w_size % 2 == 0:
-            w_size += 1
-        smooth = np.convolve(h_proj, np.ones(w_size)/w_size, mode='same')
-        max_val = np.max(smooth) if len(smooth) > 0 else 0
-        if max_val == 0:
-            return [crop_gray], [(0, 0, cw, ch)]
+    # Suppress notebook ruled lines if present
+    clean_bin = suppress_ruled_lines(clean_bin)
 
-        valleys = [0]
-        min_line_gap = max(6, ch // 25)
-        for y in range(min_line_gap, ch - min_line_gap):
-            if smooth[y] <= smooth[y-1] and smooth[y] < smooth[y+1]:
-                if (y - valleys[-1]) >= min_line_gap:
-                    peak_val = np.max(smooth[valleys[-1]:y]) if len(smooth[valleys[-1]:y]) > 0 else 0
-                    if peak_val > 0.20 * max_val and smooth[y] < 0.65 * peak_val:
-                        valleys.append(y)
+    # 7. Dense Document Valley Splitting
+    h_proj = np.sum(clean_bin > 0, axis=1)
+    w_size = max(3, int(med_h * 0.4))
+    if w_size % 2 == 0:
+        w_size += 1
+    smooth = np.convolve(h_proj, np.ones(w_size)/w_size, mode='same')
+    max_val = np.max(smooth) if len(smooth) > 0 else 0
 
-        if ch - valleys[-1] >= min_line_gap:
-            valleys.append(ch)
-        else:
-            valleys[-1] = ch
+    valleys = [0]
+    min_line_gap = max(5, int(med_h * 0.60))
+    for y in range(min_line_gap, src_h - min_line_gap):
+        if smooth[y] <= smooth[y-1] and smooth[y] < smooth[y+1]:
+            if (y - valleys[-1]) >= min_line_gap:
+                peak_val = np.max(smooth[valleys[-1]:y]) if len(smooth[valleys[-1]:y]) > 0 else 0
+                if peak_val > 0.15 * max_val and smooth[y] < 0.70 * peak_val:
+                    valleys.append(y)
 
-        if len(valleys) <= 2:
-            return [crop_gray], [(0, 0, cw, ch)]
+    if src_h - valleys[-1] >= min_line_gap:
+        valleys.append(src_h)
+    else:
+        valleys[-1] = src_h
 
-        lines_out = []
-        boxes_out = []
+    # If dense multi-line document with 6+ lines (e.g. letters, full pages, SAMPLE-2)
+    if len(valleys) - 1 >= 6:
+        lines = []
+        kept_boxes = []
+        skipped = []
         for i in range(len(valleys) - 1):
             vy1, vy2 = valleys[i], valleys[i+1]
             if vy2 - vy1 < 4:
                 continue
-            slice_g = crop_gray[vy1:vy2, :]
-            slice_b = crop_bin[vy1:vy2, :]
-            c_slice = cv2.findNonZero(slice_b)
-            if c_slice is None or len(c_slice) < 15:
+            slice_g = ink_crop[vy1:vy2, :]
+            slice_b = clean_bin[vy1:vy2, :]
+            c = cv2.findNonZero(slice_b)
+            if c is None or len(c) < 15:
                 continue
-            bx, by, bw, bh = cv2.boundingRect(c_slice)
+            bx, by, bw, bh = cv2.boundingRect(c)
+
             # Skip tiny edge watermark
-            if bh < 6 or (bh < 12 and bw/max(1, bh) > 15 and vy2 > ch - 15):
+            if bh < 6 or (bh < 12 and bw/max(1, bh) > 15 and vy2 > src_h - 15):
+                skipped.append((f'Slice {i+1}', 'Watermark / border artifact', f'aspect={bw/max(1, bh):.2f}'))
                 continue
-            lines_out.append(slice_g[by:by+bh, bx:bx+bw])
-            boxes_out.append((bx, vy1 + by, bw, bh))
 
-        return (lines_out, boxes_out) if lines_out else ([crop_gray], [(0, 0, cw, ch)])
+            # Doodle / Non-text filter on slice
+            asp = bw / max(1, bh)
+            if asp < 1.7 and (bh > int(med_h * 1.1) or vy1 < int(src_h * 0.35)):
+                skipped.append((f'Slice {i+1}', 'Drawing / Doodle (non-text)', f'aspect={asp:.2f}'))
+                continue
 
-    # Check if the document is a dense multi-line paragraph/page (like SAMPLE-2.jpg)
-    valleys_lines, valleys_boxes = split_dense_paragraph_by_valleys(ink_crop, clean_bin)
-    if len(valleys_lines) >= 6:
-        kept_boxes = [(offset_x + b[0], offset_y + b[1], b[2], b[3]) for b in valleys_boxes]
-        if return_boxes:
-            return valleys_lines, 'multi_line', [], kept_boxes
-        return valleys_lines, 'multi_line', []
+            pad_y = max(1, int(bh * 0.10))
+            pad_x = max(2, int(bw * 0.05))
+            cy1 = max(0, by - pad_y)
+            cy2 = min(vy2 - vy1, by + bh + pad_y)
+            cx1 = max(0, bx - pad_x)
+            cx2 = min(src_w, bx + bw + pad_x)
 
-    # 3. Card / Note Mode (RLSA with doodle rejection & same-line word merging)
-    k_w = max(10, int(src_w * 0.08))
+            lines.append(slice_g[cy1:cy2, cx1:cx2])
+            kept_boxes.append((offset_x + cx1, offset_y + vy1 + cy1, cx2 - cx1, cy2 - cy1))
+
+        if lines:
+            if return_boxes:
+                return lines, 'multi_line', skipped, kept_boxes
+            return lines, 'multi_line', skipped
+
+    # 8. Sparse Card / Note Mode (RLSA + doodle filter + same baseline merging)
+    k_w = max(10, int(med_h * 1.5))
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k_w, 1))
     smeared = cv2.dilate(clean_bin, kernel, iterations=1)
-
     contours, _ = cv2.findContours(smeared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
     raw_boxes = []
     for c in contours:
         bx, by, bw, bh = cv2.boundingRect(c)
@@ -789,45 +882,52 @@ def extract_text_lines(image, min_aspect_ratio=1.8, min_width=15, min_height=8, 
     cand_boxes = []
     skipped = []
     for i, (bx, by, bw, bh) in enumerate(raw_boxes):
-        aspect = bw / max(1, bh)
-        if aspect < 0.4:
-            skipped.append((f'Region {i+1}', 'Vertical border line / noise', f'aspect={aspect:.2f}'))
+        crop_bin = clean_bin[by:by+bh, bx:bx+bw]
+        coords_ink = cv2.findNonZero(crop_bin)
+        if coords_ink is None or len(coords_ink) < 15:
             continue
-        if aspect < 1.8 and (bh > 20 or by < int(src_h * 0.35)):
-            skipped.append((f'Region {i+1}', 'Drawing / Doodle (non-text)', f'aspect={aspect:.2f}'))
-            continue
-        cand_boxes.append((bx, by, bw, bh))
+        ix, iy, iw, ih = cv2.boundingRect(coords_ink)
+        true_asp = iw / max(1, ih)
 
-    def merge_same_line(boxes, max_y_dist=12):
-        if not boxes:
-            return []
-        boxes = sorted(boxes, key=lambda b: (b[1] + b[3]/2, b[0]))
-        merged = []
-        cur = [boxes[0]]
-        for b in boxes[1:]:
-            curr_y_mid = cur[-1][1] + cur[-1][3]/2
-            b_y_mid = b[1] + b[3]/2
-            if abs(curr_y_mid - b_y_mid) <= max_y_dist:
-                cur.append(b)
-            else:
-                mx1 = min(x[0] for x in cur)
-                my1 = min(x[1] for x in cur)
-                mx2 = max(x[0] + x[2] for x in cur)
-                my2 = max(x[1] + x[3] for x in cur)
-                merged.append((mx1, my1, mx2 - mx1, my2 - my1))
-                cur = [b]
-        if cur:
+        if true_asp < 0.35:
+            skipped.append((f'Region {i+1}', 'Vertical border / noise', f'aspect={true_asp:.2f}'))
+            continue
+        if true_asp < 1.8 and (ih > int(med_h * 0.9) or by < int(src_h * 0.40)):
+            skipped.append((f'Region {i+1}', 'Drawing / Doodle (non-text)', f'aspect={true_asp:.2f}'))
+            continue
+        cand_boxes.append((bx + ix, by + iy, iw, ih))
+
+    if not cand_boxes:
+        if return_boxes:
+            return [ink_crop], 'single_line', skipped, [(offset_x, offset_y, src_w, src_h)]
+        return [ink_crop], 'single_line', skipped
+
+    # Merge words on the same horizontal baseline
+    cand_boxes = sorted(cand_boxes, key=lambda b: (b[1] + b[3]/2, b[0]))
+    merged = []
+    cur = [cand_boxes[0]]
+    for b in cand_boxes[1:]:
+        curr_y_mid = cur[-1][1] + cur[-1][3]/2
+        b_y_mid = b[1] + b[3]/2
+        if abs(curr_y_mid - b_y_mid) <= int(med_h * 0.6):
+            cur.append(b)
+        else:
             mx1 = min(x[0] for x in cur)
             my1 = min(x[1] for x in cur)
             mx2 = max(x[0] + x[2] for x in cur)
             my2 = max(x[1] + x[3] for x in cur)
             merged.append((mx1, my1, mx2 - mx1, my2 - my1))
-        return merged
+            cur = [b]
+    if cur:
+        mx1 = min(x[0] for x in cur)
+        my1 = min(x[1] for x in cur)
+        mx2 = max(x[0] + x[2] for x in cur)
+        my2 = max(x[1] + x[3] for x in cur)
+        merged.append((mx1, my1, mx2 - mx1, my2 - my1))
 
-    line_boxes = merge_same_line(cand_boxes)
     lines = []
     kept_boxes = []
-    for (bx, by, bw, bh) in line_boxes:
+    for (bx, by, bw, bh) in merged:
         pad_y = max(2, int(bh * 0.15))
         pad_x = max(4, int(bw * 0.05))
         cy1 = max(0, by - pad_y)
@@ -836,11 +936,6 @@ def extract_text_lines(image, min_aspect_ratio=1.8, min_width=15, min_height=8, 
         cx2 = min(src_w, bx + bw + pad_x)
         lines.append(ink_crop[cy1:cy2, cx1:cx2])
         kept_boxes.append((offset_x + cx1, offset_y + cy1, cx2 - cx1, cy2 - cy1))
-
-    if len(lines) == 0:
-        if return_boxes:
-            return [ink_crop], 'single_line', skipped, [(offset_x, offset_y, src_w, src_h)]
-        return [ink_crop], 'single_line', skipped
 
     mode = 'single_line' if len(lines) == 1 else 'multi_line'
     if return_boxes:
