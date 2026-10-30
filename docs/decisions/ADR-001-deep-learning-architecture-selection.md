@@ -52,3 +52,4 @@ We select and implement the **Flor Deep Hybrid Architecture**, combining:
 ### Negative / Trade-offs
 - CTC conditional independence assumption implies that the model relies on the recurrent BiLSTM layers for implicit language modeling rather than a separate autoregressive decoder.
 - Requires fixed input height normalization ($H = 64\text{ px}$), which is addressed via our scale-invariant preprocessing pipeline.
+

@@ -56,3 +56,4 @@ Batch sampling is stratified such that each mini-batch contains an even distribu
 
 ### Negative / Trade-offs
 - Dataset compilation and verification pipeline requires managing multiple annotation formats (IAM XML/txt, CVL folder hierarchy, ORAND-CAR ground truth labels); solved by our unified data loader in `sarah/data/source.py`.
+

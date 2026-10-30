@@ -54,3 +54,4 @@ We implement:
 
 ### Negative / Trade-offs
 - Heavily degraded or non-standard handwriting with unusual penmanship may receive conservative confidence scores even if partially readable, which is desirable in clinical and banking domains to ensure verification.
+

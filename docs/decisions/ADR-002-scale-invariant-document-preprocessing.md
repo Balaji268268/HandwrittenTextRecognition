@@ -60,3 +60,4 @@ We implement a unified, production-grade **Scale-Invariant Document Engine** in 
 
 ### Negative / Trade-offs
 - Heavily overlapping ascenders and descenders (e.g. loops of 'y' penetrating the loop of 'd' below) can occasionally be clipped if the valley is perfectly flat; handled gracefully through vertical safety margins.
+

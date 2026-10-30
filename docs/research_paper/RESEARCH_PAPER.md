@@ -5,6 +5,13 @@
 *Email: galigastagiramma@gmail.com*  
 *GitHub Repository: [https://github.com/Balaji268268/HandwrittenTextRecognition](https://github.com/Balaji268268/HandwrittenTextRecognition)*
 
+> [!NOTE]
+> **Publication Formats Available in this Repository**:
+> 1. **Springer Nature Journal Format**: [`paper_springer.tex`](file:///D:/DL/handwritten-text-recognition/docs/research_paper/paper_springer.tex) — Formatted strictly under Springer Nature (`sn-jnl.cls`) guidelines with two-column layout, author metadata, math blocks, and embedded high-resolution figures.
+> 2. **IEEE Access Format**: [`paper_ieee_access.tex`](file:///D:/DL/handwritten-text-recognition/docs/research_paper/paper_ieee_access.tex) — Formatted under IEEEtran / IEEE Access specifications.
+> 3. **Comprehensive Literature Survey (2023–2026)**: [`docs/research/LITERATURE_SURVEY_2023_2026.md`](file:///D:/DL/handwritten-text-recognition/docs/research/LITERATURE_SURVEY_2023_2026.md) — Comprehensive survey of recent SOTA papers (TrOCR, Nougat, DAN, Decoded-ViT, HTR-VT, Deformable DETR).
+> 4. **Master PowerPoint Presentation**: [`Handwritten_Text_Recognition_Final_Review.pptx`](file:///D:/DL/handwritten-text-recognition/Handwritten_Text_Recognition_Final_Review.pptx) — Complete 18-slide executive tech presentation.
+
 ---
 
 ## Abstract
@@ -148,7 +155,13 @@ The overall architecture of the proposed system is illustrated in Figure 1. The 
 +---------------------------------------------------------------------------------------------------------+
 ```
 
+![Figure 1: Deep PySarah Flor Neural Network Architecture](figures/fig1_architecture.png)  
+*Figure 1: End-to-end PySarah Flor hybrid neural network architecture combining 4x GatedConv2D blocks, Multi-Head Self-Attention, 3x Stacked BiLSTM, and exact CTC beam search decoding.*
+
 ### A. Stage 1: Scale-Invariant Document Engine
+
+![Figure 2: Modular Scale-Invariant Document Engine Workflow](figures/fig2_preprocessing.png)  
+*Figure 2: Modular Scale-Invariant Document Engine workflow: from uncalibrated document capture to deskewed, shadow-leveled, line-segmented text strips.*
 
 #### 1. Dynamic Scale Estimation ($\text{med\_h}$)
 Let $\mathbf{I}_{\text{gray}} \in \mathbb{R}^{H \times W}$ represent the input grayscale image. To make the pipeline invariant to capture resolution and distance, the system dynamically derives the characteristic text scale $\text{med\_h}$. 
@@ -338,15 +351,37 @@ The model was implemented in TensorFlow 2.13 and trained on an NVIDIA RTX 4090 G
 
 ## V. Experimental Results & Scenario Benchmark
 
-To evaluate real-world production robustness, we constructed an exhaustive **100-Sample Benchmark** spanning ten distinct scenario categories (10 samples per category). 
-
-### A. Quantitative Performance Across All 10 Scenarios
-
-The Character Error Rate (CER), Word Error Rate (WER), Sequence Accuracy (exact string match), Mean Posterior Confidence, and Inference Latency across all ten scenario categories are reported in Table I.
+### A. Empirical Convergence Records from Trained Checkpoints (`saved_models/`)
+During model training across diverse handwriting domains, training loss, validation loss, and edit distance metrics were continuously logged to MLflow and CSV records in `saved_models/`. The empirical metrics for the primary checkpoint runs are summarized in Table I.
 
 ```
 ========================================================================================================================
-TABLE I: QUANTITATIVE EVALUATION ACROSS 10 DIVERSE REAL-WORLD SCENARIOS (100 BENCHMARK SAMPLES)
+TABLE I: EMPIRICAL PERFORMANCE METRICS EXTRACTED FROM SAVED MODEL CHECKPOINTS (saved_models/)
+========================================================================================================================
+Checkpoint Filename          | Training Domain                  | Epochs | Final Train Loss | Val CTC Loss | Val CER (dist)
+-----------------------------+----------------------------------+--------+------------------+--------------+---------------
+model_iam_combined.weights.h5| IAM Combined (Lines/Sent/Words)  | 15     | 3.4048           | 5.2141       | 5.80% (Best)
+model_iam.weights.h5         | Standard IAM Handwriting Lines   | 8      | 25.4077          | 19.2616      | 9.59%
+model_cvl-digits.weights.h5  | CVL Digits (Handwritten Numbers) | 35     | 1.3512           | 1.0604       | 6.93%
+model_orand-car-a.weights.h5 | Bank Check Courtesy Figures      | 35     | 0.2359           | 1.2411       | 2.18%
+model_parzival.weights.h5    | Medieval Gothic Manuscript       | 10     | 6.4374           | 1.9571       | 2.33%
+model_washington.weights.h5  | George Washington Letters        | 15     | 3.1320           | --           | 20.30%
+========================================================================================================================
+```
+
+![Figure 3: Empirical Training Convergence Curves](figures/fig3_training_curves.png)  
+*Figure 3: Empirical validation CTC loss and Character Error Rate (CER %) convergence curves recorded across models in saved_models/.*
+
+### B. Quantitative Performance Across All 10 Scenarios
+
+![Figure 4: Character Error Rate Across 10 Scenarios](figures/fig4_scenario_cer.png)  
+*Figure 4: Character Error Rate (CER %) across the 10 real-world benchmark scenarios.*
+
+The Character Error Rate (CER), Word Error Rate (WER), Sequence Accuracy (exact string match), Mean Posterior Confidence, and Inference Latency across all ten scenario categories are reported in Table II.
+
+```
+========================================================================================================================
+TABLE II: QUANTITATIVE EVALUATION ACROSS 10 DIVERSE REAL-WORLD SCENARIOS (100 BENCHMARK SAMPLES)
 ========================================================================================================================
 Scenario Category       | Description & Primary Stress Condition       | Samples | CER (%) | WER (%) | Seq Acc | Mean Conf | Latency
 ------------------------+----------------------------------------------+---------+---------+---------+---------+-----------+--------
@@ -498,3 +533,4 @@ Future work will explore:
 [29] R. Saabni and J. El-Sana, "Language-independent text line extraction using water flow analogy," *IEEE Transactions on Pattern Analysis and Machine Intelligence*, vol. 36, no. 5, pp. 993–1006, May 2014.  
 [30] N. Otsu, "A threshold selection method from gray-level histograms," *IEEE Transactions on Systems, Man, and Cybernetics*, vol. 9, no. 1, pp. 62–66, Jan. 1979.  
 [31] A. Venkata Balaji, "Handwritten Text Recognition Repository: Production-Ready Deep Learning Architecture," GitHub, 2026. [Online]. Available: https://github.com/Balaji268268/HandwrittenTextRecognition.
+
