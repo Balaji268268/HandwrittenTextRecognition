@@ -631,3 +631,141 @@ def prepare_image_for_recognition(image, target_shape=(64, 1024, 1), pad_value=2
     if return_canvas:
         return tensor, canvas
     return tensor
+
+
+def extract_text_lines(image, min_aspect_ratio=1.8, min_width=20, min_height=10, return_boxes=False):
+    """
+    Intelligently extracts individual text lines from an image or card:
+
+    1. Single-Line Detection:
+       If the image/crop is already a single line (aspect ratio >= 2.0 or height <= 75),
+       returns [image] immediately with zero breaking or splitting.
+
+    2. Multi-Line Documents / Cards / Notes:
+       Applies horizontal morphological clustering (RLSA) to segment separate text lines.
+
+    3. Drawing / Doodle Filtering:
+       Automatically detects and ignores non-text doodles, icons, and drawings (such as
+       smiling suns, icons, circles with aspect ratio ~ 1.0) so non-text is never fed into
+       the CTC decoder as fake text.
+
+    Parameters
+    ----------
+    image : ndarray
+        Input image (grayscale or BGR).
+    min_aspect_ratio : float
+        Minimum width / height ratio to qualify as a horizontal text line.
+    min_width : int
+        Minimum width in pixels for a valid text line candidate.
+    min_height : int
+        Minimum height in pixels for a valid text line candidate.
+    return_boxes : bool
+        If True, also returns the bounding boxes (x, y, w, h) for visualization.
+
+    Returns
+    -------
+    tuple (lines, mode, skipped_items[, boxes])
+        lines: list of np.ndarray line crops
+        mode: 'single_line' or 'multi_line'
+        skipped_items: list of tuples (name, reason, detail)
+        boxes (optional): list of bounding boxes (x, y, w, h) in original coordinate space
+    """
+    if image is None or getattr(image, 'size', 0) == 0:
+        if return_boxes:
+            return [], 'empty', [], []
+        return [], 'empty', []
+
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image.copy()
+
+    if np.mean(gray) < 127:
+        gray = cv2.bitwise_not(gray)
+
+    # Auto-trim outer margins first to check actual ink dimensions
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    coords = cv2.findNonZero(thresh)
+    if coords is not None and len(coords) > 20:
+        x_ink, y_ink, w_ink, h_ink = cv2.boundingRect(coords)
+        pad = 4
+        y1 = max(0, y_ink - pad)
+        y2 = min(gray.shape[0], y_ink + h_ink + pad)
+        x1 = max(0, x_ink - pad)
+        x2 = min(gray.shape[1], x_ink + w_ink + pad)
+        ink_crop = gray[y1:y2, x1:x2]
+        ink_h, ink_w = ink_crop.shape[:2]
+        offset_x, offset_y = x1, y1
+    else:
+        ink_crop = gray
+        ink_h, ink_w = gray.shape[:2]
+        offset_x, offset_y = 0, 0
+
+    # Case 1: Already a single line / digit string / word
+    if ink_h <= 75 or (ink_w / max(1, ink_h)) >= 2.0:
+        if return_boxes:
+            return [ink_crop], 'single_line', [], [(offset_x, offset_y, ink_w, ink_h)]
+        return [ink_crop], 'single_line', []
+
+    # Case 2: Multi-row note, card, or document
+    src_h, src_w = ink_crop.shape[:2]
+    _, binary = cv2.threshold(ink_crop, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Clear outer border edges to eliminate photo borders / shadows
+    border_y = max(3, int(src_h * 0.03))
+    border_x = max(3, int(src_w * 0.03))
+    binary[0:border_y, :] = 0
+    binary[-border_y:, :] = 0
+    binary[:, 0:border_x] = 0
+    binary[:, -border_x:] = 0
+
+    # Horizontal dilation (RLSA) to connect characters on the same line
+    k_w = max(12, int(src_w * 0.10))
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k_w, 1))
+    smeared = cv2.dilate(binary, kernel, iterations=1)
+
+    contours, _ = cv2.findContours(smeared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    raw_boxes = []
+    for c in contours:
+        bx, by, bw, bh = cv2.boundingRect(c)
+        if bw >= min_width and bh >= min_height:
+            raw_boxes.append((bx, by, bw, bh))
+
+    raw_boxes = sorted(raw_boxes, key=lambda b: b[1])
+
+    lines = []
+    kept_boxes = []
+    skipped = []
+
+    for i, (bx, by, bw, bh) in enumerate(raw_boxes):
+        aspect = bw / max(1, bh)
+
+        # Skip thin vertical border lines
+        if aspect < 0.4:
+            skipped.append((f'Region {i+1}', 'Vertical border line / noise', f'aspect={aspect:.2f}'))
+            continue
+
+        # Skip non-text drawings, doodles, icons (e.g. smiling sun, circle)
+        if aspect < min_aspect_ratio and (bh > 25 or by < int(src_h * 0.4)):
+            skipped.append((f'Region {i+1}', 'Drawing / Doodle (non-text)', f'aspect={aspect:.2f}'))
+            continue
+
+        pad_y = max(2, int(bh * 0.15))
+        pad_x = max(4, int(bw * 0.05))
+        cy1 = max(0, by - pad_y)
+        cy2 = min(src_h, by + bh + pad_y)
+        cx1 = max(0, bx - pad_x)
+        cx2 = min(src_w, bx + bw + pad_x)
+
+        line_crop = ink_crop[cy1:cy2, cx1:cx2]
+        lines.append(line_crop)
+        kept_boxes.append((offset_x + cx1, offset_y + cy1, cx2 - cx1, cy2 - cy1))
+
+    if len(lines) == 0:
+        if return_boxes:
+            return [ink_crop], 'fallback_direct', skipped, [(offset_x, offset_y, ink_w, ink_h)]
+        return [ink_crop], 'fallback_direct', skipped
+
+    if return_boxes:
+        return lines, 'multi_line', skipped, kept_boxes
+    return lines, 'multi_line', skipped
