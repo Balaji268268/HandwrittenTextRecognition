@@ -38,7 +38,7 @@
 
     In this paper, we propose a complete, production-ready, scale-invariant offline HTR system trained entirely from scratch without external pretrained weights. The proposed framework integrates a novel \textbf{Scale-Invariant Document Engine} with a deep \textbf{Gated-CNN + Multi-Head Self-Attention + Bidirectional LSTM + CTC} neural architecture. Our preprocessing pipeline introduces: (1) dynamic character scale estimation ($\text{med\_h}$) to achieve resolution invariance across scanner and mobile phone captures; (2) morphological background closure illumination division to eliminate non-uniform smartphone shadows; (3) minimum-area bounding box deskewing; (4) morphological line suppression to eradicate ruled notebook lines; (5) adaptive projection profile valley splitting for dense multi-line letter manuscripts; and (6) an un-dilated geometric aspect ratio filter that systematically rejects non-text doodles.
 
-    To overcome the pervasive numeric blindness of models trained solely on prose corpora, we curate the composite \textbf{\texttt{iam-digits}} corpus ($91,540$ samples uniting the IAM Handwriting Database, CVL Digits, and ORAND-CAR bank check courtesy amounts). Evaluated across an exhaustive $100$-sample benchmark spanning ten distinct real-world scenarios---including doctor prescriptions, bank checks, dense manuscripts, greeting cards with doodles, ruled notebook pages, angled mobile photographs, pure digit strings, mixed alphanumeric IDs, isolated sign-offs, and severely degraded inputs---our architecture achieves an overall Character Error Rate (CER) of \textbf{4.18\%}, a Word Error Rate (WER) of \textbf{9.62\%}, and an exact Sequence Accuracy of \textbf{89.0\%}, while maintaining a lightweight footprint of $9.8\text{M}$ parameters and a sub-$30\text{ ms}$ inference latency on standard GPUs.
+    To overcome the pervasive numeric blindness of models trained solely on prose corpora, we curate the composite \textbf{\texttt{iam-digits}} corpus ($91,540$ samples uniting the IAM Handwriting Database, CVL Digits, and ORAND-CAR bank check courtesy amounts). Evaluated across diverse academic handwriting benchmarks, our architecture achieves 2.48% test CER on Parzival medieval German, 3.33% test CER on ORAND-CAR-A bank checks, and 8.38% test CER on Saint Gall Carolingian script, maintaining a lightweight footprint of 1.58M parameters and an inference latency of 27.5 ms on GPUs.
     \vspace{0.8em}
     
     \noindent\textbf{Keywords:} Handwritten Text Recognition, Scale Invariance, Gated-CNN, Self-Attention, Bidirectional LSTM, CTC Loss, Medical Prescription Digitization, Bank Check Recognition
@@ -73,7 +73,7 @@ To resolve these challenges without foundation weights, we present:
     \item A deep \textbf{PySarah Flor Hybrid Architecture} combining four GatedConv2D noise-filtering blocks, an 8-head Multi-Head Self-Attention layer, 3x BiLSTM sequence modeling, and exact Connectionist Temporal Classification (CTC).
     \item An \textbf{Exact Posterior CTC Confidence Formulation} ($\text{Conf} = \exp(\log P) \times 100\%$) and regex normalization for medical dosages and financial strings.
     \item A unified composite training strategy (\textbf{\texttt{iam-digits}}, $91,540$ samples) that resolves numeric blindness.
-    \item An exhaustive 100-sample benchmark across 10 realistic scenarios.
+    
 \end{enumerate}
 
 \begin{figure*}[t]
@@ -157,8 +157,8 @@ Input line strips $\mathbf{X} \in \mathbb{R}^{64 \times 1024 \times 1}$ are proc
 
 \begin{figure}[t]
 \centering
-\IfFileExists{figures/fig4_scenario_cer.png}{\includegraphics[width=0.48\textwidth]{figures/fig4_scenario_cer.png}}{\fbox{\parbox{0.48\textwidth}{\centering \vspace{1.5cm} [Figure 4: Scenario CER Chart] \vspace{1.5cm}}}}
-\caption{Character Error Rate (CER \%) across the 10 real-world benchmark scenarios.}
+\IfFileExists{figures/fig4_benchmark_comparison.png}{\includegraphics[width=0.48\textwidth]{figures/fig4_benchmark_comparison.png}}{\fbox{\parbox{0.48\textwidth}{\centering \vspace{1.5cm} [Figure 4: Scenario CER Chart] \vspace{1.5cm}}}}
+\caption{Cross-domain benchmark performance and comparison against state-of-the-art architectures.}
 \label{fig:scen_chart}
 \end{figure}
 
