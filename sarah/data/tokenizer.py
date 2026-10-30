@@ -234,9 +234,14 @@ class Tokenizer():
         translation_table = str.maketrans('', '', ''.join(self.chars[:self.special_chars_length]))
         index_to_char = {idx: char for idx, char in enumerate(self.chars)}
 
+        if hasattr(encoded_text, 'ndim') and encoded_text.ndim == 1:
+            encoded_text = [encoded_text]
+        elif isinstance(encoded_text, list) and encoded_text and not hasattr(encoded_text[0], '__iter__'):
+            encoded_text = [encoded_text]
+
         decoded_text = []
         for encoded_line in encoded_text:
-            decoded_line = [index_to_char.get(encoded_char, '') for encoded_char in encoded_line]
+            decoded_line = [index_to_char.get(int(encoded_char), '') for encoded_char in encoded_line]
             decoded_text.append(''.join(decoded_line))
 
         decoded_text = '\n'.join(decoded_text)
