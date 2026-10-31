@@ -257,7 +257,7 @@ Bluche & Messina                      ICDAR 2017     No (Scratch)          4.2 M
 Flor et al.                           BRACIS 2020    No (Scratch)          8.8 M         3.85%           5.10%
 Hernandez Diaz et al.                 ICDAR 2021     No (Scratch)          7.4 M         3.60%           5.40%
 TrOCR-Small                           AAAI 2023      No (Scratch)          62.4 M        31.40%          38.40%
-TrOCR-Large                           AAAI 2023      Yes (684M line images) 558 M        N/A             2.89%
+TrOCR-Large                           AAAI 2023      Yes (684M line images) 558 M        --             2.89%
 VAN (Vertical Attention Net)          TPAMI 2023     No (Scratch)          24.5 M        3.20%           4.80%
 HTR-VT (Vision Transformer)           PR 2025        No (Scratch)          18.2 M        4.90%           6.20%
 HTR-ViTRNN                            IEEE Access 26 No (Scratch)          8.4 M         3.10%           5.15%

@@ -177,10 +177,10 @@ Table~\ref{tab:benchmark} presents the verified quantitative evaluation across f
 Dataset & Script / Domain & Test Samples & Epochs & Val Edit Dist (\%) & Test CER (\%) & Test WER (\%) \\
 \midrule
 \textbf{Parzival}     & 13th-century German (Gothic) & 1,328 lines   & 10 & 2.339\% & \textbf{2.48\%} & \textbf{8.53\%} \\
-\textbf{ORAND-CAR-A}  & Bank Check Courtesy Amounts  & 3,784 amounts & 35 & 2.183\% & \textbf{3.33\%} & N/A \\
+\textbf{ORAND-CAR-A}  & Bank Check Courtesy Amounts  & 3,784 amounts & 35 & 2.183\% & \textbf{3.33\%} & -- \\
 \textbf{Saint Gall}   & 9th-century Latin Minuscule  & 707 lines     & 20 & 9.678\% & \textbf{8.38\%} & \textbf{41.62\%} \\
 \textbf{IAM Combined} & Modern English Handwriting   & 966 val lines & 15 & 5.664\%*& --              & -- \\
-\textbf{CVL Digits}   & Multi-Writer Digit Strings   & 6,698 strings & 35 & 6.934\% & 50.78\%         & N/A \\
+\textbf{CVL Digits}   & Multi-Writer Digit Strings   & 6,698 strings & 35 & 6.934\% & 50.78\%         & -- \\
 \bottomrule
 \multicolumn{7}{l}{\footnotesize *Note: IAM Combined reports best validation edit distance at epoch 12. Test evaluation was preserved as unreported (--).} \\
 \multicolumn{7}{l}{\footnotesize **Note: Saint Gall test evaluation is documented via frozen execution log in Cell 28 (Epoch 14 restored, 707 lines).} \\
@@ -198,7 +198,7 @@ Model / Paper & Venue & Pretrained? & Params & IAM Val Edit Dist (\%) & Parzival
 \midrule
 TrOCR-Small \cite{li2023trocr} & AAAI 2023 & Yes (684M line images) & 62.4 M & 2.89\% & 18.40\% \\
 TrOCR-Small (Scratch) \cite{li2023trocr} & AAAI 2023 & \textbf{No} & 62.4 M & 38.40\% & 46.20\% \\
-Nougat \cite{blecher2023nougat} & Meta AI 2023 & Yes (1.7M PDFs) & 250 M & N/A & > 50\% \\
+Nougat \cite{blecher2023nougat} & Meta AI 2023 & Yes (1.7M PDFs) & 250 M & -- & > 50\% \\
 DAN \cite{coquenet2023dan} & IEEE TPAMI 2023 & No & 18.5 M & 4.80\% & 14.50\% \\
 Decoded-ViT \cite{zhang2024decoded} & ICDAR 2024 & Yes (ImageNet) & 28.0 M & 4.60\% & 12.80\% \\
 HTR-VT \cite{kang2025htr} & Pat. Rec. 2025 & No & 14.2 M & 4.45\% & 8.90\% \\
