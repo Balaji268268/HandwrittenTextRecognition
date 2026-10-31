@@ -1,6 +1,8 @@
 # Handwritten Text Recognition using Vision Transformers
 
 **Author:** A. Venkata Balaji  
+**Affiliation:** Vellore Institute of Technology (VIT), Vellore, Tamil Nadu, India  
+**Email:** galigastagiramma@gmail.com  
 **Target Venue:** IEEE Access (Special Section on Advances in Document Analysis and Recognition)  
 
 ---
