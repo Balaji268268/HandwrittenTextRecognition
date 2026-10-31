@@ -20,7 +20,7 @@
 
 \begin{document}
 
-\title[Scale-Adaptive Multi-Dataset HTR]{Scale-Adaptive Document Conditioning and Multi-Head Gated Convolutional Networks for Multi-Dataset Offline Handwritten Text Recognition}
+\title[Scale-Adaptive Multi-Dataset HTR]{Scale-Adaptive Document Conditioning and Gated CNN--Attention--BiLSTM Recognition for Multi-Dataset Offline Handwritten Text Recognition}
 
 \author*[1]{\fnm{A.~Venkata} \sur{Balaji}}\email{galigastagiramma@gmail.com}
 \equalcont{Registration No: 23BCE20336. Repository: \url{https://github.com/Balaji268268/HandwrittenTextRecognition}}
@@ -212,6 +212,20 @@ HTR-VT \cite{kang2025htr} & Pat. Rec. 2025 & No & 14.2 M & 4.45\% & 8.90\% \\
 \vspace{2pt}
 {\footnotesize *Note: IAM Combined reports best validation normalized edit distance at epoch 12 ($5.66\%$, final epoch 15: $5.81\%$), verified in Cell 39 and \texttt{model\_iam\_combined\_epochs.csv}; independent full test evaluation is unreported (--).}
 \end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/fig6_generalization_gap.png}
+\caption{Diagnostic analysis of the generalization gap on CVL Digits. Left: Training and validation loss trajectories showing smooth convergence without numerical divergence. Right: Discrepancy between validation edit distance ($6.93\%$) and held-out test CER ($50.78\%$), illustrating the impact of unconstrained numeral sequence length drift and the total absence of lexical vocabulary constraints.}
+\label{fig:gap}
+\end{figure}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/fig5_dataset_samples.png}
+\caption{Qualitative transcription examples produced by the proposed model across five benchmark datasets, extracted directly from test evaluation cells in tutorial\_colab.ipynb. For each sample, the preprocessed image line is shown alongside the ground-truth annotation (GT) and greedy/beam CTC decoding output (Pred), demonstrating robust handling of medieval ligatures, bank check courtesy digits, and cursive English text.}
+\label{fig:samples}
+\end{figure*}
 
 \section{Conclusion}\label{sec4}
 We presented a scale-invariant and noise-robust offline Handwritten Text Recognition system trained from scratch without external pretrained weights. By coupling a Scale-Invariant Document Engine with a deep Gated-CNN + Multi-Head Self-Attention + BiLSTM + CTC architecture and multi-dataset \texttt{iam-digits} composition ($91,540$ samples), our framework achieves \textbf{2.48\%} test CER on the Parzival medieval benchmark and \textbf{3.33\%} on ORAND bank checks, operating with an ultra-compact footprint of only $1.58\text{M}$ parameters and linear $\mathcal{O}(T)$ recurrent computational complexity.
