@@ -206,9 +206,11 @@ DAN \cite{coquenet2023dan} & IEEE TPAMI 2023 & No & 18.5 M & 4.80\% & 14.50\% & 
 Decoded-ViT \cite{zhang2024decoded} & ICDAR 2024 & Yes (ImageNet) & 28.0 M & 4.60\% & 12.80\% & 95.0 ms \\
 HTR-VT \cite{kang2025htr} & Pat. Rec. 2025 & No & 14.2 M & 4.45\% & 8.90\% & 35.0 ms \\
 \midrule
-\textbf{Proposed PySarah Flor} & \textbf{This Work} & \textbf{NO (Scratch)} & \textbf{1.58 M} & \textbf{4.35\%} & \textbf{2.48\%} & \textbf{27.5 ms} \\
+\textbf{Proposed PySarah Flor} & \textbf{This Work} & \textbf{NO (Scratch)} & \textbf{1.58 M} & \textbf{5.66\%}* & \textbf{2.48\%} & \textbf{27.5 ms} \\
 \bottomrule
 \end{tabular*}
+\vspace{2pt}
+{\footnotesize *Note: IAM Combined reports best validation normalized edit distance at epoch 12 ($5.66\%$, final epoch 15: $5.81\%$), verified in Cell 39 and \texttt{model\_iam\_combined\_epochs.csv}; independent full test evaluation is unreported (--).}
 \end{table*}
 
 \section{Conclusion}\label{sec4}

@@ -35,7 +35,7 @@ Offline Handwritten Text Recognition (HTR) remains a formidable challenge in doc
 
 In this paper, we propose a holistic, production-grade HTR framework that bridges this operational divide through the tight coupling of a parameter-free \textbf{Scale-Adaptive Document Conditioning Engine} with a lightweight \textbf{Gated-CNN + Multi-Head Self-Attention + Bidirectional LSTM + CTC} sequence recognition architecture ($1.58\text{M}$ parameters). The document conditioning stage adaptively estimates characteristic median stroke height ($\text{med\_h}$) to normalize image scale, suppresses ruled notebook lines via morphological opening, eliminates smartphone shadow gradients via background closure division, segments dense multi-line letter manuscripts using projection-profile valley splitting, and eliminates non-text doodle hallucinations using an un-dilated aspect-ratio filter. 
 
-We conduct a forensic multi-domain evaluation across five real-world historical, administrative, and financial benchmarks (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits). Our compact $1.58\text{M}$ parameter model achieves \textbf{2.48\%} test Character Error Rate (CER) and \textbf{8.53\%} Word Error Rate (WER) on the Parzival medieval German corpus, \textbf{3.33\%} test CER on ORAND-CAR-A bank checks, and \textbf{8.38\%} test CER on Saint Gall, while running at \textbf{27.5 ms} inference latency ($39.5\times$ smaller than TrOCR-Small). Furthermore, we present an empirical investigation of cross-domain distribution shift on CVL Digits ($6.93\%$ validation edit distance vs. $50.78\%$ test CER) and validate the component-wise contributions of gating, self-attention, and morphological conditioning without external pretrained weights.
+We conduct a forensic multi-domain evaluation across five real-world historical, administrative, and financial benchmarks (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits). Our compact $1.58\text{M}$ parameter model achieves \textbf{2.48\%} test Character Error Rate (CER) and \textbf{8.53\%} Word Error Rate (WER) on the Parzival medieval German corpus, \textbf{3.33\%} test CER on ORAND-CAR-A bank checks, and \textbf{8.38\%} test CER on Saint Gall, while running at \textbf{27.5 ms} inference latency ($39.5\times$ smaller than TrOCR-Small). Furthermore, we present an empirical investigation of validation-to-test generalization gap on CVL Digits ($6.93\%$ validation edit distance vs. $50.78\%$ test CER) and validate the component-wise contributions of gating, self-attention, and morphological conditioning without external pretrained weights.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -89,7 +89,7 @@ The primary contributions of this paper are summarized as follows:
     \item \textbf{Morphological Illumination & Line Suppression:} We introduce morphological closure division using scale-parameterized kernels to level non-uniform smartphone illumination gradients, coupled with horizontal opening operators that strip ruled paper lines without fragmenting vertical character stems.
     \item \textbf{Valley-Splitting Line Slicing & Doodle Discrimination:} We design a projection-profile valley-splitting algorithm capable of cleanly segmenting dense multi-line paragraphs, integrated with an un-dilated aspect ratio discrimination filter ($AR_{\text{true}} < 1.8 \land H > 0.9 \cdot \text{med\_h}$) that systematically rejects non-text doodles, preventing model hallucination.
     \item \textbf{Lightweight Hybrid Neural Architecture ($1.58\text{M}$ Parameters):} We engineer a deep sequence model combining seven convolutional stages with six interleaved residual Gated-CNN blocks (which dynamically filter paper noise via spatial gating), a two-head Multi-Head Self-Attention layer ($h=2, d_k=8$), and three Bidirectional LSTM layers with Connectionist Temporal Classification (CTC). The architecture comprises exactly $1,583,847$ parameters for vocabulary size $C=83$, governed by the closed-form scaling equation $P_{\text{total}} = 1,562,516 + 257C$, and runs in $27.5\text{ ms}$ per line.
-    \item \textbf{Exact Posterior CTC Confidence Formulation:} We derive a mathematically bounded confidence formulation, establishing that $P = \exp(\log P_{\text{CTC}}) \times 100\%$ provides calibrated posterior probabilities that reject out-of-distribution noise ($< 0.01\%$).
+    \item \textbf{Exact CTC Sequence Joint Probability Formulation:} We implement a mathematically bounded sequence probability formulation, establishing that $P = \exp(\log P_{\text{CTC}}) \times 100\%$ computes the sequence joint probability under marginalized CTC alignment paths to flag severe visual noise and unrecognizable inputs ($< 0.01\%$). Furthermore, our un-dilated aspect ratio filter ($AR_{\text{true}} < 1.8 \land H > 0.9 \cdot \text{med\_h}$) serves as an effective geometric heuristic to reject squarish non-text doodles.
     \item \textbf{Multi-Domain Empirical Validation:} We conduct rigorous multi-dataset evaluations across five distinct handwriting corpora (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits), establishing high transcription accuracy on medieval German ($2.48\%$ test CER) and bank checks ($3.33\%$ test CER) while systematically analyzing the performance and distribution shift in unconstrained digit strings.
 \end{enumerate}
 
@@ -329,18 +329,16 @@ To evaluate dataset-specific recognition performance across heterogeneous handwr
     \item \textbf{CVL Digits Dataset:} Multi-writer handwritten digit strings from the CVL database \cite{kleber2013cvl}, containing $7,960$ numeral string images partitioned into $1,073$ training, $189$ validation, and $6,698$ test samples.
 \end{enumerate}
 
-\subsection{Warm-Started Transfer & Step-Capped Optimization}
-In modern document analysis, retraining deep sequence models from random initialization across diverse historical scripts requires extensive compute and risks diverging. In this work, the multi-domain models are trained using a warm-started transfer learning protocol. Specifically, the model is initialized from the weights of the 8-epoch IAM baseline checkpoint using non-matching weight skipping:
-\begin{equation}
-\text{model.load\_weights}(\text{checkpoint\_path}, \text{skip\_mismatch}=\text{True})
-\end{equation}
-This transfers low-level edge and stroke features from the convolutional encoder while allowing the recurrent decoder and dense vocabulary projection to adapt to target script alphabets.
-
-Furthermore, to maintain rapid iteration cycles on standard GPU hardware (e.g., NVIDIA T4 / RTX 4090), training steps are bounded using a step-capping schedule:
-\begin{equation}
-N_{\text{train\_steps}} = \min(S_{\text{train}}, 800), \quad N_{\text{val\_steps}} = \min(S_{\text{val}}, 200)
-\end{equation}
-With batch size $B=16$, each epoch processes $12,800$ samples. Optimization is performed using Adam ($\eta_0 = 10^{-3}$) with cosine decay, gradient clipping at global norm $5.0$, and early stopping with patience of $15$ epochs based on validation edit distance.
+\subsection{Training Protocol: Dataset-Specific Training and Transfer Warm-Starting}
+In our multi-dataset evaluation, training configurations are tailored to the distinct characteristics of each corpus:
+\begin{itemize}
+    \item \textbf{Dataset-Specific Scratch Training (Parzival, Saint Gall, ORAND, CVL):} For the historical codices and numeral corpora, models are trained from scratch using Glorot uniform initialization with the AdamW optimizer ($\eta_0 = 10^{-3}$, $\beta_1 = 0.5, \beta_2 = 0.99, \text{weight decay} = 0.01, \epsilon = 10^{-7}$). Parzival and Saint Gall use batch size $B=16$ with early stopping patience of 15 epochs. ORAND-CAR-A and CVL Digits train up to 35 epochs with ReduceLROnPlateau.
+    \item \textbf{Transfer Warm-Starting (IAM Combined):} To evaluate feature transfer on complex multi-writer English prose, the IAM Combined model evaluates transfer warm-starting initialized from the 8-epoch IAM baseline checkpoint using non-matching weight skipping:
+    \begin{equation}
+    \text{model.load\_weights}(\text{checkpoint\_path}, \text{skip\_mismatch}=\text{True})
+    \end{equation}
+    IAM Combined trains at batch size $B=32$ with a step-capping schedule bounded at $800$ steps/epoch (processing up to $25,600$ sample presentations per epoch) across 15 epochs, reaching a best validation normalized edit distance of $5.66\%$ at epoch 12.
+\end{itemize}
 
 \begin{figure*}[t]
 \centering
@@ -415,12 +413,12 @@ HTR-VT (Vision Transformer) \cite{kang2025htr}   & PR 2025     & No (Scratch) & 
 
 Addressing \textbf{RQ6}, our $1.58\text{M}$ parameter architecture achieves lower Character Error Rate on the Parzival benchmark ($2.48\%$) than previous CRNN architectures (Puigcerver: $4.12\%$; Flor: $3.85\%$) and modern Vision Transformers trained from scratch (TrOCR-Small: $31.40\%$; HTR-VT: $4.90\%$), while operating at only \textbf{27.5 ms} per line ($11.6\times$ faster than TrOCR-Small and $24.7\times$ faster than TrOCR-Large).
 
-\section{Ablation Studies}
-To rigorously quantify the isolated contribution of each architectural and preprocessing module, we perform systematic ablation experiments on the Parzival and Saint Gall historical corpora (Table~\ref{tab:ablation}).
+\section{Ablation Analysis}
+To examine the conceptual contributions of the individual conditioning and neural components, Table~\ref{tab:ablation} presents an exploratory component ablation study conducted during system architecture development on the Parzival and Saint Gall historical corpora.
 
 \begin{table}[h]
 \centering
-\caption{Systematic Component Ablation Study on Historical Manuscript Corpora}
+\caption{Exploratory Component Ablation Study on Historical Manuscript Corpora}
 \label{tab:ablation}
 \begin{tabular}{lccc}
 \toprule
