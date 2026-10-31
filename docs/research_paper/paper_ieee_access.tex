@@ -26,22 +26,31 @@
 \renewcommand{\floatpagefraction}{0.85}
 \renewcommand{\dblfloatpagefraction}{0.85}
 
-
 \usepackage{cite}
 
 \usepackage[caption=false,font=footnotesize]{subfig}
-
-
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
 
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
+\raggedbottom
+% Strict compact math display spacing to prevent vertical expansion
+\setlength{\abovedisplayskip}{3pt plus 1pt minus 1pt}
+\setlength{\belowdisplayskip}{3pt plus 1pt minus 1pt}
+\setlength{\abovedisplayshortskip}{1pt plus 1pt minus 1pt}
+\setlength{\belowdisplayshortskip}{1pt plus 1pt minus 1pt}
 
+\makeatletter
+\g@addto@macro\normalsize{%
+  \setlength\abovedisplayskip{3pt plus 1pt minus 1pt}%
+  \setlength\belowdisplayskip{3pt plus 1pt minus 1pt}%
+  \setlength\abovedisplayshortskip{1pt plus 1pt minus 1pt}%
+  \setlength\belowdisplayshortskip{1pt plus 1pt minus 1pt}%
+}
+\makeatother
 
 \begin{document}
-
-
 
 \title{Handwritten Text Recognition using Vision Transformers}
 
@@ -54,15 +63,11 @@
 
 \maketitle
 
-
-
 \begin{abstract}
 
 Offline Handwritten Text Recognition (HTR) remains a demanding computer vision challenge driven by extensive intra-class stylistic variability, unconstrained document layouts, illumination gradients, ruled notebook lines, and non-text visual artifacts. While contemporary vision-language foundation models (e.g., TrOCR, Donut) achieve low transcription error rates on standard leaderboards, their success depends strictly on multi-million parameter Transformer backbones pretrained on massive synthetic corpora ($\ge 10^7$ images). When trained from scratch in resource-constrained or specialized domains, Vision Transformers consistently suffer from optimization collapse and severe overfitting. In this paper, we present a compact, end-to-end offline HTR framework engineered for multi-dataset transcription without external pretrained weights. The proposed system integrates a parameter-free \textbf{Scale-Adaptive Document Conditioning Engine} with a lightweight ($1.58\text{M}$ parameter) hybrid neural architecture combining seven convolutional stages with six interleaved residual \textbf{Gated-CNN} blocks, a two-head \textbf{Multi-Head Self-Attention (MHSA)} module, three stacked \textbf{Bidirectional LSTM} layers, and Connectionist Temporal Classification (CTC) beam search decoding ($W=32$). The conditioning engine dynamically anchors document leveling, deskewing, line suppression, line segmentation, and two-branch geometric doodle filtering to the document's intrinsic median stroke height ($h_m$). Evaluated across five heterogeneous handwriting corpora, our framework achieves a Character Error Rate (CER) of \textbf{2.48\%} (Word Error Rate: \textbf{8.53\%}) on 13th-century German Gothic script (\emph{Parzival}), \textbf{3.33\%} CER on bank check courtesy amounts (\emph{ORAND-CAR-A}), and \textbf{8.38\%} CER (\textbf{41.62\%} WER) on Carolingian Latin (\emph{Saint Gall}). On modern English prose (\emph{IAM Combined}), the architecture obtains a best validation edit distance of \textbf{5.66\%}. Furthermore, we transparently analyze a substantial validation-to-test performance gap on \emph{CVL Digits} ($6.93\%$ validation edit distance vs. $50.78\%$ test CER) as an empirical case study in numeric sequence length drift and the absence of lexical language priors. These findings demonstrate that compact, scale-adaptive hybrid models provide a highly effective, computationally tractable solution across specialized handwriting domains.
 
 \end{abstract}
-
-
 
 \begin{IEEEkeywords}
 
@@ -70,17 +75,11 @@ Handwritten Text Recognition (HTR), Scale-Adaptive Conditioning, Gated Convoluti
 
 \end{IEEEkeywords}
 
-
-
 \section{Introduction}
 
 \label{sec:introduction}
 
-
-
 \IEEEPARstart{O}{ffline} Handwritten Text Recognition (HTR) is the automated conversion of static handwritten text images into digital character sequences. Unlike optical character recognition (OCR) on printed typography—where glyphs conform to rigid font geometries and predictable kerning—handwritten documents exhibit continuous intra-writer stylistic drift, irregular ligature connections, variable stroke thickness, slant angles, and baseline waviness~\cite{plamondon2000, graves2009}. In real-world operational workflows, such as the digital preservation of historical medieval manuscripts~\cite{fischer2012groundtruth}, the processing of financial bank checks~\cite{koerich2014}, and the digitization of clinical health records~\cite{bluche2017gated}, document degradation severely compounds recognition difficulty. Unconstrained mobile camera captures introduce non-uniform illumination gradients, perspective skew, pre-printed ruled line interference, and extraneous non-text drawings (e.g., signatures, doodles, and stamps) that induce catastrophic sequence hallucinations in standard decoders.
-
-
 
 \begin{figure*}[t]
 
@@ -93,8 +92,6 @@ Handwritten Text Recognition (HTR), Scale-Adaptive Conditioning, Gated Convoluti
 \label{fig:pipeline}
 
 \end{figure*}
-
-
 
 \subsection{Limitations of Foundation Paradigms and Research Gaps}
 
@@ -111,8 +108,6 @@ Over the past five years, document analysis research has increasingly gravitated
     \item \textbf{The Preprocessing Disconnect:} The vast majority of published HTR literature evaluates sequence recognition networks on pre-segmented, cleanly cropped horizontal line strips. In genuine multi-line documents, ascenders and descenders from adjacent text lines interlock, page skew warps horizontal reading paths, and background shadow gradients degrade binarization. Decoupling line segmentation from downstream recognition without scale-adaptive feedback induces brittle processing chains.
 
 \end{enumerate}
-
-
 
 \subsection{Research Questions}
 
@@ -134,8 +129,6 @@ To establish an empirical and theoretical foundation for robust, compact, non-pr
 
 \end{itemize}
 
-
-
 \subsection{Contributions of the Paper}
 
 Addressing these questions, this paper makes four principal technical contributions:
@@ -152,21 +145,13 @@ Addressing these questions, this paper makes four principal technical contributi
 
 \end{enumerate}
 
-
-
 The remainder of this paper is structured as follows. Section~\ref{sec:related_work} synthesizes recent literature from 2020 to 2026 across six core HTR paradigms. Section~\ref{sec:methodology} formalizes the mathematical formulation of the scale-adaptive document engine and hybrid neural architecture. Section~\ref{sec:experimental_setup} outlines the dataset partitions, training protocols, and evidence hierarchy. Section~\ref{sec:results} presents quantitative benchmark results, training dynamics, complexity analysis, and the CVL Digits case study. Section~\ref{sec:discussion} analyzes qualitative transcriptions, failure modes, and threats to validity. Section~\ref{sec:conclusion} concludes the paper with future research directions.
-
-
 
 \section{Related Work (2020--2026 Taxonomy)}
 
 \label{sec:related_work}
 
-
-
 Offline handwritten text recognition has evolved substantially over the past six years. To contextualize our contribution, we categorize recent advances across six distinct methodological axes.
-
-
 
 \begin{figure*}[t]
 
@@ -180,155 +165,93 @@ Offline handwritten text recognition has evolved substantially over the past six
 
 \end{figure*}
 
-
-
 \subsection{Gated Convolutional Recognition}
 
 Classical HTR frameworks rely on multi-dimensional Long Short-Term Memory networks (MDLSTM)~\cite{graves2009} or standard CNN-BiLSTM pipelines~\cite{puigcerver2017multidimensional}. While recurrent architectures model long-range sequential context effectively, standard convolutional layers apply static linear filter banks followed by non-linear activations, which indiscriminately propagate low-contrast paper grain, ink bleed, and historical parchment aging into deeper feature maps. Bluche and Messina~\cite{bluche2017gated} introduced Gated Convolutions (Gated-CNN), wherein a linear feature convolution is modulated by an element-wise sigmoid gating convolution. In 2020, Yousef et al.~\cite{yousef2020} demonstrated a recurrence-free unconstrained HTR model using a Gated Fully Convolutional Network (Gated-FCN), proving that gated convolutions can capture sufficient horizontal context to replace recurrent layers on select Latin scripts. Flor et al.~\cite{flor2020gated} further refined gated convolutional networks for Brazilian historical documents. In our architecture, rather than discarding recurrence entirely, we deploy six interleaved residual Gated-CNN blocks as an adaptive front-end spatial filter, actively suppressing non-ink parchment textures before feature vectors reach recurrent layers.
-
-
 
 \subsection{Attention-Based and Hybrid Sequence Modeling}
 
 To overcome the sequential computation bottlenecks and gradient degradation associated with deep recurrent stacks, document analysis researchers introduced self-attention mechanisms. In their 2021 study, Hernandez Diaz et al.~\cite{diaz2021rethinking} systematically compared BiLSTM, Gated Recurrent Convolutional Layers (GRCL), Multi-Head Self-Attention (MHSA), and Transformer decoders with Connectionist Temporal Classification (CTC). Their empirical findings revealed that a hybrid architecture combining self-attention with BiLSTMs and CTC achieved $2.75\%$ CER on the IAM database when assisted by an external $n$-gram language model, demonstrating that non-autoregressive CTC decoders can achieve state-of-the-art transcription without the computational latency of autoregressive Transformer decoders. In 2023, Coquenet et al.~\cite{coquenet2023dan} introduced the Vertical Attention Network (VAN) and Document Attention Network (DAN), extending attention mechanisms to multi-line paragraph and page-level recognition, reporting $4.45\%$ paragraph-level CER on IAM.
 
-
-
 \subsection{Pretrained Vision-Language Foundation Models}
 
 The paradigm of large-scale pretraining arrived in HTR with TrOCR by Li et al.~\cite{li2023trocr} (AAAI 2023). TrOCR couples an image Transformer encoder (DeiT/BEiT) with an autoregressive text Transformer decoder (RoBERTa/BART). While TrOCR achieved impressive transcription error rates ($2.89\%$ CER on IAM for TrOCR-Large), its accuracy depends strictly on pretraining across $684$ million synthetic typography text lines. In 2024, Fujitake~\cite{fujitake2024dtrocr} introduced DTrOCR, demonstrating a decoder-only architecture utilizing pretrained generative language models for OCR. However, recent investigations by Diaz et al.~\cite{diaz2022rethinking} and Kang et al.~\cite{kang2023evaluating} demonstrated that when Vision Transformers are trained strictly from scratch on medium academic corpora without synthetic pretraining, they fail to converge ($\text{CER} > 35\%$), highlighting the indispensable role of convolutional inductive biases in resource-constrained settings.
-
-
 
 \subsection{Data-Efficient and Compact Transformers}
 
 Recognizing the data hunger of pure Vision Transformers, recent research has explored parameter-efficient and hybrid Transformer architectures. In 2025, Li et al.~\cite{li2025htr} proposed HTR-VT, combining a CNN front-end feature extractor with a Vision Transformer encoder, Sharpness-Aware Minimization (SAM), and span masking to enable data-efficient Transformer training from scratch ($4.70\%$ IAM CER at $53.5\text{M}$ parameters). In 2026, Doan Tinh and An~\cite{doantinh2026} demonstrated HTR-ViTRNN in IEEE Access, introducing post-encoder recurrent temporal modeling to improve stability during small-batch training. In parallel, Mas-Candela and Calvo-Zaragoza~\cite{mascandela2024} (IJDAR 2024) investigated Recursive Neural Networks (RecNN) for compact HTR, exploring parameter-accuracy trade-offs on the Parzival, Saint Gall, and Washington historical datasets. Our work aligns with this focus on architectural compactness, establishing that a $1.58\text{M}$ parameter Gated-CNN-MHSA-BiLSTM network trained entirely from scratch outperforms much larger architectures on historical codices.
 
-
-
 \subsection{Self-Supervised Learning and Contemporary Surveys}
 
 The most recent 2026 literature focuses on self-supervised representation learning and foundation surveys. Mitra et al.~\cite{mitra2026logo} introduced LoGo-HTR at WACV 2026, combining local contrastive learning with global decorrelation, achieving $2.01\%$ IAM CER at $6.4\text{M}$ parameters using self-supervised pretraining. In a 2026 preprint, Kim et al.~\cite{kim2026drethtr} proposed DRetHTR, a decoder-only Retentive Network reporting $2.26\%$ CER on IAM-A. Furthermore, Garrido-Munoz et al.~\cite{garridomunoz2026survey} published a comprehensive survey in IEEE TPAMI (2026), emphasizing that evaluation protocols, annotation granularity, writer diversity, and split distributions vary substantially across public corpora, necessitating rigorous, dataset-stratified empirical reporting.
-
-
 
 \subsection{Document Preprocessing and Line Segmentation}
 
 Document layout analysis and line extraction in unconstrained environments remain critical bottlenecks in real-world HTR~\cite{louloudis2009}. Classical methods utilize horizontal projection profiles, Hough transforms, and Run-Length Smoothing Algorithms (RLSA)~\cite{wahl1982}. In dense historical manuscripts, ascenders and descenders from adjacent lines frequently interlock, rendering simple global thresholding ineffective. Advanced techniques utilize A* seam carving~\cite{shapiro2013} or morphological water-flow analogies~\cite{saabni2014}. However, seam carving exhibits computational complexity scaling as $\mathcal{O}(H \times W^2)$, requiring several seconds per document image. Modern deep learning segmentation models (e.g., Mask R-CNN, YOLOv8) provide high bounding box precision but introduce external pretrained weights and substantial parameter overhead. Consequently, a lightweight, parameter-free, scale-invariant line segmentation and noise filtering algorithm remains highly desirable.
 
-
-
 \section{Problem Formulation and Proposed Methodology}
 
 \label{sec:methodology}
-
-
 
 \subsection{Mathematical Problem Formulation}
 
 Let $\mathcal{D} \subset \mathbb{R}^{H_0 \times W_0}$ denote an unconstrained grayscale document image captured via a mobile camera or flatbed scanner. The document contains an unknown number $K$ of handwritten text lines $\mathbf{X}_k \in \mathbb{R}^{H \times W \times 1}$ alongside non-uniform illumination gradients $\mathcal{I}(x, y)$, angular skew angle $\theta \in [-45^\circ, 45^\circ]$, pre-printed horizontal ruled notebook lines $\mathcal{R}$, and non-text visual drawings/doodles $\mathcal{A}$. The primary objective is to transcribe each valid text line $\mathbf{X}_k$ into its corresponding discrete target character sequence $\mathbf{y}_k = (y_{k,1}, y_{k,2}, \ldots, y_{k,U}) \in \Sigma^U$, where $\Sigma$ represents the discrete alphabet vocabulary ($|\Sigma| = C - 1$), while systematically rejecting decorative artifacts $\mathcal{A}$ without false-positive transcription hallucinations.
 
-
-
 \subsection{Stage 1: Scale-Adaptive Document Conditioning Engine}
 
 Unconstrained document captures exhibit substantial variation in spatial resolution, camera distance, ambient lighting, document tilt, and background interference. Rather than applying rigid pixel-sized kernels, our conditioning engine dynamically anchors every geometric, morphological, and segmentation operation to the document's intrinsic median stroke height:
 
-
-
 \subsubsection{Dynamic Stroke Scale Estimation}
 
 The input document $\mathcal{D}$ is first binarized using Otsu's adaptive thresholding~\cite{otsu1979} following Gaussian smoothing ($\sigma=1.0$). Connected components $\mathcal{C} = \{c_1, c_2, \ldots, c_N\}$ are extracted via 8-connectivity analysis. Let $h_i$ denote the bounding box height of component $c_i$. To eliminate isolated dust specks ($h_i < 5\text{ px}$) and full-page structural borders ($h_i > 0.5 H_0$), components are filtered into a valid text-candidate subset $\mathcal{C}_{\text{text}} = \{c_i \in \mathcal{C} \mid 5 \le h_i \le 0.5 H_0\}$. The characteristic median stroke scale $h_m$ is evaluated as:
-
 \begin{equation}
-
 h_m = \operatorname{median}\left(\{h_i \mid c_i \in \mathcal{C}_{\text{text}}\}\right)
-
 \label{eq:med_h}
-
 \end{equation}
-
-Every subsequent filtering kernel dimension is parameterized strictly as a function of $h_m$.
-
-
+\noindent Every subsequent filtering kernel dimension is parameterized strictly as a function of $h_m$.
 
 \subsubsection{Morphological Illumination Correction via Closure Division}
 
 Smartphone document captures frequently feature severe non-uniform shadow gradients induced by ambient desk lamps or mobile hand cast shadows. Standard global or local adaptive thresholding algorithms fragment character strokes under steep illumination gradients~\cite{chen2019}. We construct a scale-adaptive flat square structuring element $K_{\text{illum}} \in \mathbb{R}^{S \times S}$, where kernel size $S$ is scaled proportionally to stroke height:
-
 \begin{equation}
-
 S = \max\left(15, \, 2 \cdot \left\lfloor 2 h_m \right\rfloor + 1\right)
-
 \label{eq:kernel_illum}
-
 \end{equation}
-
-Morphological closure (dilation followed by erosion) using $K_{\text{illum}}$ bridges over foreground ink strokes while capturing the slowly varying low-frequency background illumination envelope:
-
+\noindent Morphological closure (dilation followed by erosion) using $K_{\text{illum}}$ bridges over foreground ink strokes while capturing the slowly varying low-frequency background illumination envelope:
 \begin{equation}
-
 \mathcal{B}_{\text{illum}} = \mathcal{D} \bullet K_{\text{illum}} = \left(\mathcal{D} \oplus K_{\text{illum}}\right) \ominus K_{\text{illum}}
-
 \end{equation}
-
-The leveled document $\mathcal{D}_{\text{norm}}$ is computed via element-wise floating-point division:
-
+\noindent The leveled document $\mathcal{D}_{\text{norm}}$ is computed via element-wise floating-point division:
 \begin{equation}
-
 \mathcal{D}_{\text{norm}}(x, y) = \min\left(255, \, \left\lfloor \frac{\mathcal{D}(x, y)}{\max(1, \mathcal{B}_{\text{illum}}(x, y))} \times 255 \right\rfloor \right)
-
 \label{eq:closure_division}
-
 \end{equation}
-
-This operation levels background parchment gradients to uniform high-intensity white while preserving the topological continuity of dark ink strokes.
-
-
+\noindent This operation levels background parchment gradients to uniform high-intensity white while preserving the topological continuity of dark ink strokes.
 
 \subsubsection{Principal Axis Document Deskewing}
 
 Document skew is estimated by computing the minimum-area rotated bounding box enclosing the convex hull of foreground text components. Let $\phi \in [-45^\circ, 45^\circ]$ denote the dominant angle of the detected text orientation. The canvas is rotated via bilinear interpolation around document center $(x_c, y_c)$:
-
 \begin{equation}
-
 \begin{bmatrix} x' \\ y' \end{bmatrix} = \begin{bmatrix} \cos\phi & -\sin\phi \\ \sin\phi & \cos\phi \end{bmatrix} \begin{bmatrix} x - x_c \\ y - y_c \end{bmatrix} + \begin{bmatrix} x_c \\ y_c \end{bmatrix}
-
 \end{equation}
-
 aligning text lines strictly parallel to the horizontal axis.
-
-
 
 \subsubsection{Morphological Ruled-Line Suppression}
 
 In lined notebooks and ledger forms, pre-printed horizontal rules directly intersect character descenders (\texttt{'g'}, \texttt{'p'}, \texttt{'y'}) and ascenders (\texttt{'t'}, \texttt{'l'}, \texttt{'d'}), degrading feature extraction~\cite{zheng2013}. To eliminate ruled lines without breaking vertical stroke topology, we construct a 1D horizontal structuring element $K_{\text{line}} = \mathbf{1}_{1 \times L}$, where $L = \lfloor 2.5 h_m \rfloor$. Morphological opening extracts long horizontal line structures:
-
 \begin{equation}
-
 \mathcal{R}_{\text{lines}} = \mathcal{D}_{\text{bin}} \circ K_{\text{line}} = (\mathcal{D}_{\text{bin}} \ominus K_{\text{line}}) \oplus K_{\text{line}}
-
 \end{equation}
-
-The line-suppressed document is obtained via pixel-wise set difference:
-
+\noindent The line-suppressed document is obtained via pixel-wise set difference:
 \begin{equation}
-
 \mathcal{D}_{\text{clean}} = \mathcal{D}_{\text{bin}} \setminus \mathcal{R}_{\text{lines}} = \max\left(0, \, \mathcal{D}_{\text{bin}} - \mathcal{R}_{\text{lines}}\right)
-
 \label{eq:line_suppression}
-
 \end{equation}
-
-Because vertical and diagonal character strokes have horizontal widths substantially smaller than $2.5 h_m$, this operator eliminates ruled lines while maintaining character stroke connectivity.
-
-
+\noindent Because vertical and diagonal character strokes have horizontal widths substantially smaller than $2.5 h_m$, this operator eliminates ruled lines while maintaining character stroke connectivity.
 
 \subsubsection{Projection Valley-Splitting Line Slicing}
 
 Text lines are segmented by evaluating the horizontal projection profile histogram $\mathcal{H}(y) = \sum_{x=1}^{W} \mathcal{D}_{\text{clean}}(x, y)$. In historical codices with interlocking ascenders and descenders, valleys in $\mathcal{H}(y)$ rarely drop to zero. We apply dynamic valley splitting: candidate text-line boundaries are located at local minima $y_k^*$ where $\mathcal{H}(y_k^*) \le 0.15 \times \operatorname{mean}(\mathcal{H})$, subject to a minimum inter-line separation constraint $\Delta y \ge 1.2 h_m$. Extracted text-line strips are padded symmetrically and resized to a standardized input dimension $\mathbf{X} \in \mathbb{R}^{64 \times 1024 \times 1}$ using bilinear interpolation while preserving original aspect ratios.
-
-
 
 \subsubsection{Two-Tier Geometric Doodle Rejection}
 
@@ -342,161 +265,83 @@ Non-text visual elements (decorative drawings, smiley faces, circular stamps) ex
 
 \end{itemize}
 
-
-
 \subsection{Stage 2: Gated-CNN Feature Extractor}
 
 Standard convolutional layers compute a linear transformation followed by a non-linear activation:
-
 \begin{equation}
-
 \mathbf{F} = \text{LeakyReLU}\left(\mathbf{X} * \mathbf{W}_f + \mathbf{b}_f\right)
-
 \end{equation}
-
-In Gated Convolutions, a parallel gating branch computes a data-driven spatial attention mask:
-
+\noindent In Gated Convolutions, a parallel gating branch computes a data-driven spatial attention mask:
 \begin{equation}
-
 \mathbf{G} = \sigma\left(\mathbf{X} * \mathbf{W}_g + \mathbf{b}_g\right) \in [0, 1]
-
 \end{equation}
-
 where $\sigma(z) = (1 + e^{-z})^{-1}$ denotes the element-wise sigmoid function. The gated feature representation $\mathbf{Y}$ is evaluated via Hadamard element-wise multiplication:
-
 \begin{equation}
-
 \mathbf{Y} = \mathbf{F} \odot \mathbf{G}
-
 \label{eq:gated_conv}
-
 \end{equation}
-
-In residual Gated-CNN blocks, an identity shortcut with $1 \times 1$ projection is added:
-
+\noindent In residual Gated-CNN blocks, an identity shortcut with $1 \times 1$ projection is added:
 \begin{equation}
-
 \mathbf{Y}_{\text{res}} = (\mathbf{F} \odot \mathbf{G}) + \text{Conv}_{1\times 1}(\mathbf{X})
-
 \end{equation}
-
-The gating tensor $\mathbf{G} \in [0, 1]$ acts as a continuous spatial attention mask, dynamically zeroing out low-contrast background paper textures while routing ink stroke features forward. Seven convolutional stages with six interleaved residual Gated-CNN blocks progressively reduce spatial dimensions to $(1, 256, 128)$.
-
-
+\noindent The gating tensor $\mathbf{G} \in [0, 1]$ acts as a continuous spatial attention mask, dynamically zeroing out low-contrast background paper textures while routing ink stroke features forward. Seven convolutional stages with six interleaved residual Gated-CNN blocks progressively reduce spatial dimensions to $(1, 256, 128)$.
 
 \subsection{Stage 3: Multi-Head Self-Attention and BiLSTM Modeling}
 
 The spatial representation is squeezed into a sequential visual feature representation $\mathbf{T} \in \mathbb{R}^{256 \times 128}$ ($T=256$ time steps).
 
-
-
 \subsubsection{Multi-Head Self-Attention (MHSA)}
 
 To capture global line context and stroke continuity across long text lines, a 2-head Multi-Head Self-Attention layer is positioned immediately following the convolutional backbone:
-
-\begin{equation}
-
-\text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{softmax}\left(\frac{\mathbf{Q}\mathbf{K}^T}{\sqrt{d_k}}\right)\mathbf{V}
-
-\end{equation}
-
-\begin{equation}
-
-\text{MHSA}(\mathbf{T}) = \text{Concat}(\text{head}_1, \text{head}_2)\mathbf{W}^O
-
-\end{equation}
-
+\begin{align}
+\text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) &= \text{softmax}\left(\frac{\mathbf{Q}\mathbf{K}^T}{\sqrt{d_k}}\right)\mathbf{V} \label{eq:attention} \\
+\text{MHSA}(\mathbf{T}) &= \text{Concat}(\text{head}_1, \text{head}_2)\mathbf{W}^O \label{eq:mhsa}
+\end{align}
 with projection dimension $d_k = d_v = 8$ and $h = 2$ heads ($8,368$ parameters), followed by residual addition and layer normalization:
-
 \begin{equation}
-
 \mathbf{T}_{\text{attn}} = \text{LayerNorm}\left(\mathbf{T} + \text{MHSA}(\mathbf{T})\right)
-
 \end{equation}
-
-This attention mechanism enables the model to resolve ambiguous character strokes by attending directly to morphological cues situated across distant positions on the text line.
-
-
+\noindent This attention mechanism enables the model to resolve ambiguous character strokes by attending directly to morphological cues situated across distant positions on the text line.
 
 \subsubsection{Deep Bidirectional LSTM Stack}
 
 The contextualized representation $\mathbf{T}_{\text{attn}}$ is processed by a three-layer Bidirectional Long Short-Term Memory (BiLSTM) network. For each time step $t \in [1, T]$ ($T = 256$):
-
-\begin{equation}
-
-\overrightarrow{\mathbf{h}}_t = \text{LSTM}_{\text{fwd}}\left(\mathbf{t}_t, \, \overrightarrow{\mathbf{h}}_{t-1}\right), \quad \overleftarrow{\mathbf{h}}_t = \text{LSTM}_{\text{bwd}}\left(\mathbf{t}_t, \, \overleftarrow{\mathbf{h}}_{t+1}\right)
-
-\end{equation}
-
-\begin{equation}
-
-\mathbf{h}_t = \left[ \overrightarrow{\mathbf{h}}_t \,\|\, \overleftarrow{\mathbf{h}}_t \right] \in \mathbb{R}^{256}
-
-\end{equation}
-
+\begin{align}
+\overrightarrow{\mathbf{h}}_t &= \text{LSTM}_{\text{fwd}}\left(\mathbf{t}_t, \, \overrightarrow{\mathbf{h}}_{t-1}\right), \quad \overleftarrow{\mathbf{h}}_t = \text{LSTM}_{\text{bwd}}\left(\mathbf{t}_t, \, \overleftarrow{\mathbf{h}}_{t+1}\right) \label{eq:bilstm_dirs} \\
+\mathbf{h}_t &= \left[ \overrightarrow{\mathbf{h}}_t \,\|\, \overleftarrow{\mathbf{h}}_t \right] \in \mathbb{R}^{256} \label{eq:bilstm_concat}
+\end{align}
 with $128$ units per direction ($256$ units combined per layer). The recurrent representations maintain bidirectional contextual continuity, resolving cursive ligatures and character transpositions.
-
-
 
 \subsection{Stage 4: CTC Projection and Beam-Search Decoding}
 
 The BiLSTM output $\mathbf{h}_t$ is projected via a dense linear layer to vocabulary logits $\mathbf{O} \in \mathbb{R}^{T \times C}$, where $C = |\Sigma| + 1$ ($|\Sigma|$ character tokens plus the CTC blank token $\epsilon$):
-
 \begin{equation}
-
 P(\pi_t = c \mid \mathbf{X}) = \frac{\exp(o_t^c)}{\sum_{c'=1}^{C} \exp(o_t^{c'})}
-
 \end{equation}
-
-Let $\mathcal{B}$ denote the CTC collapsing operator that removes repeated tokens and blanks. The conditional probability of target sequence $\mathbf{y}$ is evaluated by marginalizing over all valid alignment paths:
-
+\noindent Let $\mathcal{B}$ denote the CTC collapsing operator that removes repeated tokens and blanks. The conditional probability of target sequence $\mathbf{y}$ is evaluated by marginalizing over all valid alignment paths:
 \begin{equation}
-
 P(\mathbf{y} \mid \mathbf{X}) = \sum_{\pi \in \mathcal{B}^{-1}(\mathbf{y})} P(\pi \mid \mathbf{X}) = \sum_{\pi \in \mathcal{B}^{-1}(\mathbf{y})} \prod_{t=1}^{T} P(\pi_t \mid \mathbf{X})
-
 \end{equation}
-
-The network is trained end-to-end by minimizing the CTC negative log-likelihood loss:
-
+\noindent The network is trained end-to-end by minimizing the CTC negative log-likelihood loss:
 \begin{equation}
-
 \mathcal{L}_{\text{CTC}} = -\ln P(\mathbf{y} \mid \mathbf{X})
-
 \label{eq:ctc_loss}
-
 \end{equation}
-
-
-
-During inference, candidate transcriptions $\hat{\mathbf{y}}$ are decoded via CTC beam search with beam width $W=32$. TensorFlow's beam search decoder returns the exponentiated top-path log-probability:
-
+\noindent During inference, candidate transcriptions $\hat{\mathbf{y}}$ are decoded via CTC beam search with beam width $W=32$. TensorFlow's beam search decoder returns the exponentiated top-path log-probability:
 \begin{equation}
-
 \hat{P}(\hat{\mathbf{y}} \mid \mathbf{X}) = \exp\left( \log P_{\text{beam}}(\hat{\mathbf{y}} \mid \mathbf{X}) \right)
-
 \label{eq:beam_likelihood}
-
 \end{equation}
-
 matching the implementation in \texttt{sarah/models/components/base.py} (\texttt{tf.exp(log\_probabilities)}). Because finite beam search evaluates a bounded subset of CTC paths, $\hat{P}(\hat{\mathbf{y}} \mid \mathbf{X})$ represents an uncalibrated, beam-search-derived sequence likelihood rather than a full marginalized posterior probability.
-
-
 
 \subsection{Closed-Form Parameter Scaling Law}
 
 A fundamental characteristic of our architecture is its closed-form parameter scaling law. The shared feature-and-recurrent backbone (7 Conv2D stages, 6 residual Gated-CNN blocks, 2-head MHSA, and 3 BiLSTM layers) possesses exactly \textbf{1,562,516 parameters} ($1,561,636$ trainable, $880$ non-trainable normalization weights). The final Dense projection head contains $(256 \times C) + C = 257 \times C$ parameters. Total network parameters scale strictly via:
-
 \begin{equation}
-
 P_{\text{total}} = 1,562,516 + 257C
-
 \label{eq:param_scaling}
-
 \end{equation}
-
-Table~\ref{tab:checkpoints} verifies this formula across all five available checkpoint families against the stored HDF5 tensor dimensions.
-
-
+\noindent Table~\ref{tab:checkpoints} verifies this formula across all five available checkpoint families against the stored HDF5 tensor dimensions.
 
 \begin{table*}[!t]
 \caption{Reconciliation of Checkpoint Parameters against Stored HDF5 Tensors and Tokenizer Class Dimensions ($P_{\text{total}} = 1,562,516 + 257C$)}
@@ -521,13 +366,9 @@ Table~\ref{tab:checkpoints} verifies this formula across all five available chec
 }
 \end{table*}
 
-
-
 \section{Experimental Setup and Evidence Hierarchy}
 
 \label{sec:experimental_setup}
-
-
 
 \subsection{Benchmark Corpora}
 
@@ -547,8 +388,6 @@ The framework is evaluated across five diverse academic handwriting datasets spa
 
 \end{enumerate}
 
-
-
 \subsection{Formal Three-Tier Evidence Hierarchy}
 
 To guarantee full transparency and prevent any misinterpretation of training versus testing performance, we establish a formal three-tier evidence hierarchy:
@@ -563,21 +402,13 @@ To guarantee full transparency and prevent any misinterpretation of training ver
 
 \end{itemize}
 
-
-
 \subsection{Training and Evaluation Protocol}
 
 Models are optimized using AdamW ($\beta_1=0.9, \beta_2=0.999$, weight decay $10^{-4}$) with an initial learning rate of $\eta_0 = 10^{-3}$, reduced by a factor of $0.2$ upon validation plateau. Batch size is fixed to 16. Evaluation metrics include Character Error Rate (CER), Word Error Rate (WER), and Macro-Averaged Character Accuracy ($1 - \text{CER}$), evaluated via Levenshtein edit distance:
-
 \begin{equation}
-
 \text{CER} = \frac{S + D + I}{N_{\text{ref}}} \times 100\%
-
 \end{equation}
-
 where $S, D, I$ denote substitutions, deletions, and insertions, and $N_{\text{ref}}$ is total ground-truth characters.
-
-
 
 \begin{figure*}[t]
 
@@ -591,13 +422,9 @@ where $S, D, I$ denote substitutions, deletions, and insertions, and $N_{\text{r
 
 \end{figure*}
 
-
-
 \section{Experimental Results and Analysis}
 
 \label{sec:results}
-
-
 
 \subsection{Training Convergence Dynamics}
 
@@ -615,13 +442,9 @@ Fig.~\ref{fig:training_curves} illustrates the training loss and validation edit
 
 \end{itemize}
 
-
-
 \subsection{Held-Out Academic Benchmark Performance}
 
 Table~\ref{tab:benchmarks} presents the primary empirical benchmark results logged across the five evaluated corpora, with visual comparison depicted in Fig.~\ref{fig:benchmark_results}(a).
-
-
 
 \begin{table*}[!t]
 \caption{Comprehensive Multi-Dataset Empirical Benchmark Performance Logged Across Trained Checkpoint Families}
@@ -645,8 +468,6 @@ Table~\ref{tab:benchmarks} presents the primary empirical benchmark results logg
 }
 \end{table*}
 
-
-
 \begin{figure*}[t]
 
 \centering
@@ -659,17 +480,11 @@ Table~\ref{tab:benchmarks} presents the primary empirical benchmark results logg
 
 \end{figure*}
 
-
-
 On the \textbf{Parzival} medieval codex, the proposed framework achieves \textbf{2.48\%} test CER and \textbf{8.53\%} test WER across 1,328 test lines. On \textbf{ORAND-CAR-A} bank check courtesy amounts, the model obtains \textbf{3.33\%} test CER, confirming that spatial gating and bidirectional recurrence effectively capture irregular digit sequences. On the \textbf{Saint Gall} Carolingian manuscript, the system achieves \textbf{8.38\%} test CER despite severe parchment aging and faded ink. On \textbf{IAM Combined}, under step-capped optimization (Cell 39), the model reaches a best validation edit distance of \textbf{5.66\%} at epoch 12.
-
-
 
 \subsection{Analysis of Distribution Shift: The CVL Digits Case Study (RQ5)}
 
 A central empirical finding is the substantial performance discrepancy observed on the CVL Digits benchmark: while validation edit distance converged smoothly to \textbf{6.93\%}, held-out test CER degraded to \textbf{50.78\%} across 6,698 test strings (Table~\ref{tab:benchmarks}).
-
-
 
 \begin{figure}[t]
 
@@ -683,8 +498,6 @@ A central empirical finding is the substantial performance discrepancy observed 
 
 \end{figure}
 
-
-
 Investigating this discrepancy addresses \textbf{RQ5}. Rather than concealing this result, we present it as an important diagnostic case study (Fig.~\ref{fig:generalization_gap}). We identify three compounding structural mechanisms driving this degradation:
 
 \begin{enumerate}
@@ -697,13 +510,9 @@ Investigating this discrepancy addresses \textbf{RQ5}. Rather than concealing th
 
 \end{enumerate}
 
-
-
 \subsection{Comparison with State-of-the-Art Literature (2020--2026)}
 
 Table~\ref{tab:sota} compares our framework against prominent baseline architectures and contemporary literature spanning 2020 to 2026.
-
-
 
 \begin{table*}[!t]
 \caption{Comprehensive Comparison with State-of-the-Art Offline HTR Literature (2020--2026), Categorized by Pretraining Scale, Model Parameters, and Evaluation Level}
@@ -738,17 +547,11 @@ DRetHTR~\cite{kim2026drethtr}                    & Preprint 2026 & Decoder-Only 
 }
 \end{table*}
 
-
-
 Addressing \textbf{RQ6}, our $1.58\text{M}$ parameter architecture achieves lower CER on the Parzival codex ($2.48\%$) than prior CRNN architectures (Puigcerver: $4.12\%$; Flor: $3.85\%$) and modern Vision Transformers trained from scratch without external pretraining (TrOCR-Small: $31.40\%$; HTR-VT: $4.90\%$). Crucially, our system achieves this accuracy with a substantially smaller parameter footprint: $1.58\text{M}$ parameters compared to $62.4\text{M}$ for TrOCR-Small ($39.5\times$ reduction) and $558\text{M}$ for TrOCR-Large ($353\times$ reduction).
-
-
 
 \subsection{Computational Complexity Analysis}
 
 From a computational complexity perspective, the hybrid 1D convolutional and bidirectional recurrent decoder evaluates in linear time $\mathcal{O}(T)$ with respect to sequence length $T=256$. In contrast, full vision-language Transformers incur quadratic spatial self-attention complexity $\mathcal{O}(L^2)$ across input image patches ($L = H \times W / P^2$) followed by sequential autoregressive token generation. By projecting convolutional feature maps directly into 1D sequences and applying non-autoregressive CTC beam search, our system avoids autoregressive decoding bottlenecks.
-
-
 
 \begin{figure*}[t]
 
@@ -762,19 +565,13 @@ From a computational complexity perspective, the hybrid 1D convolutional and bid
 
 \end{figure*}
 
-
-
 \section{Discussion, Failure Modes, and Threats to Validity}
 
 \label{sec:discussion}
 
-
-
 \subsection{Multi-Dataset Versatility vs. Cross-Domain Generalization}
 
 An important distinction must be maintained regarding multi-dataset evaluation. Our experimental evidence demonstrates that the proposed architecture adapts effectively across diverse handwriting scripts (Gothic Latin, Carolingian Latin, check amounts, numeric strings, modern English) when trained on dataset-specific target vocabularies. However, these experiments do not establish zero-shot cross-domain generalization. A model trained on modern English prose cannot transcribe medieval Gothic ligatures without vocabulary adaptation and retrained projection weights. We therefore characterize our framework as a multi-dataset adaptable framework rather than an unconstrained universal recognizer.
-
-
 
 \subsection{Qualitative Analysis and Characteristic Failure Modes}
 
@@ -790,8 +587,6 @@ Visual inspection of model predictions across the evaluated corpora reveals thre
 
 \end{enumerate}
 
-
-
 \subsection{Threats to Validity}
 
 \begin{itemize}
@@ -804,157 +599,81 @@ Visual inspection of model predictions across the evaluated corpora reveals thre
 
 \end{itemize}
 
-
-
 \section{Conclusion and Future Work}
 
 \label{sec:conclusion}
 
-
-
 This paper presented a scale-adaptive offline handwritten text recognition framework engineered for multi-dataset document transcription without external pretrained foundation weights. By integrating a parameter-free Scale-Adaptive Document Conditioning Engine with a lightweight $1.58\text{M}$ parameter Gated-CNN + MHSA + BiLSTM hybrid architecture, the proposed system demonstrates that compact, scale-grounded models can match or outperform substantially larger Vision Transformers trained from scratch. Evaluated across five benchmark corpora, the framework achieved $2.48\%$ test CER on Parzival, $3.33\%$ test CER on ORAND-CAR-A bank checks, and $8.38\%$ test CER on Saint Gall Carolingian script. Furthermore, our diagnostic investigation of CVL Digits highlighted the critical role of lexical priors and sequence length drift in numeric sequence recognition.
-
-
 
 Future research will investigate: (1) self-supervised local feature pretraining (following the LoGo-HTR paradigm) to improve representation robustness prior to task-specific fine-tuning; (2) learned neural seam carving for interlocking multi-line manuscript paragraphs; and (3) open-vocabulary language model rescoring to resolve isolated numeric and historical ligature ambiguities.
 
-
-
 \begin{thebibliography}{00}
-
-
 
 \bibitem{plamondon2000} R. Plamondon and S. N. Srihari, ``On-line and off-line handwriting recognition: A comprehensive survey,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, vol. 22, no. 1, pp. 63--84, Jan. 2000, doi: 10.1109/34.824821.
 
-
-
 \bibitem{graves2009} A. Graves, M. Liwicki, S. Fern{\'a}ndez, R. Bertolami, H. Bunke, and J. Schmidhuber, ``A novel connectionist system for unconstrained handwriting recognition,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, vol. 31, no. 5, pp. 855--868, May 2009, doi: 10.1109/TPAMI.2008.137.
-
-
 
 \bibitem{fischer2012groundtruth} A. Fischer, E. Inderm{\"u}hle, H. Bunke, G. Viehhauser, and M. Stolz, ``Ground truth creation for handwriting recognition in historical documents,'' in \emph{Proc. 9th IAPR Int. Workshop Doc. Anal. Syst. (DAS)}, 2012, pp. 3--10.
 
-
-
 \bibitem{koerich2014} A. L. Koerich et al., ``ICDAR 2014 competition on recognition of courtesy amounts on bank checks,'' in \emph{Proc. 14th Int. Conf. Front. Handwrit. Recognit. (ICFHR)}, 2014, pp. 773--778, doi: 10.1109/ICFHR.2014.135.
-
-
 
 \bibitem{bluche2017gated} T. Bluche and R. Messina, ``Gated convolutional recurrent neural networks for multilingual handwriting recognition,'' in \emph{Proc. 14th IAPR Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2017, pp. 646--651, doi: 10.1109/ICDAR.2017.111.
 
-
-
 \bibitem{li2023trocr} M. Li, T. Lv, J. Chen, L. Cui, Y. Lu, D. Florencio, C. Zhang, and F. Wei, ``TrOCR: Transformer-based optical character recognition with pre-trained models,'' in \emph{Proc. AAAI Conf. Artif. Intell.}, vol. 37, no. 11, pp. 13094--13102, 2023, doi: 10.1609/aaai.v37i11.26538.
-
-
 
 \bibitem{kim2022donut} G. Kim, T. Hong, M. Yim, J. Nam, J. Park, J. Yim, W. Hwang, S. Yun, D. Han, and S. Park, ``OCR-free document understanding transformer,'' in \emph{Proc. Eur. Conf. Comput. Vis. (ECCV)}, 2022, pp. 498--517.
 
-
-
 \bibitem{blecher2023nougat} L. Blecher, G. Cucurull, P. P. Scialom, and R. Stojnic, ``Nougat: Neural optical understanding for academic documents,'' in \emph{Proc. Conf. Empir. Methods Nat. Lang. Process. (EMNLP)}, 2023.
-
-
 
 \bibitem{diaz2022rethinking} D. Hernandez Diaz, S. Yang, F. Cloppet, and V. Eglin, ``Rethinking text line recognition models,'' \emph{arXiv preprint arXiv:2104.07787}, 2021.
 
-
-
 \bibitem{kang2023evaluating} L. Kang, M. Riba, M. Villegas, and A. Forn{\'e}s, ``Evaluating vision transformers for handwritten text recognition,'' in \emph{Proc. Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2023, pp. 312--328.
-
-
 
 \bibitem{li2025htr} Z. Li, C. Liu, and Y. Wang, ``HTR-VT: Handwritten text recognition with vision transformer,'' \emph{Pattern Recognit.}, vol. 159, p. 110967, 2025, doi: 10.1016/j.patcog.2024.110967.
 
-
-
 \bibitem{marti2002iam} U.-V. Marti and H. Bunke, ``The IAM-database: An English sentence database for offline handwriting recognition,'' \emph{Int. J. Doc. Anal. Recognit.}, vol. 5, no. 1, pp. 39--46, Nov. 2002, doi: 10.1007/s100320200071.
-
-
 
 \bibitem{puigcerver2017multidimensional} J. Puigcerver, ``Are multidimensional recurrent layers really necessary for handwritten text recognition?'' in \emph{Proc. 14th IAPR Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2017, pp. 67--72, doi: 10.1109/ICDAR.2017.20.
 
-
-
 \bibitem{yousef2020} M. Yousef, K. F. Hussain, and U. S. Mohammed, ``Recurrence-free unconstrained handwritten text recognition using gated fully convolutional network,'' in \emph{Proc. 17th Int. Conf. Front. Handwrit. Recognit. (ICFHR)}, 2020, pp. 85--90, doi: 10.1109/ICFHR2020.2020.00015.
-
-
 
 \bibitem{flor2020gated} E. Flor, B. L. D. Bezerra, and C. Zanchettin, ``A gated convolutional recurrent neural network for cuneiform character recognition,'' in \emph{Proc. BRACIS}, 2020, pp. 320--334.
 
-
-
 \bibitem{diaz2021rethinking} D. Hernandez Diaz, S. Yang, F. Cloppet, and V. Eglin, ``Rethinking text line recognition models,'' in \emph{Proc. Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2021, pp. 377--392.
-
-
 
 \bibitem{coquenet2023dan} D. Coquenet, C. Chatelain, and T. Paquet, ``End-to-end handwritten paragraph text recognition using a vertical attention network,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, vol. 45, no. 1, pp. 508--524, Jan. 2023, doi: 10.1109/TPAMI.2022.3144899.
 
-
-
 \bibitem{fujitake2024dtrocr} M. Fujitake, ``DTrOCR: Decoder-only transformer for optical character recognition,'' in \emph{Proc. IEEE/CVF Winter Conf. Appl. Comput. Vis. (WACV)}, 2024, pp. 5626--5635.
-
-
 
 \bibitem{mascandela2024} R. Mas-Candela and J. Calvo-Zaragoza, ``Exploring recursive neural networks for compact HTR models,'' \emph{Int. J. Doc. Anal. Recognit.}, vol. 27, pp. 341--353, 2024, doi: 10.1007/s10032-024-00481-y.
 
-
-
 \bibitem{doantinh2026} T. Doan Tinh and J. An, ``HTR-ViTRNN: A lightweight hybrid vision transformer recurrent network for offline handwritten text recognition,'' \emph{IEEE Access}, vol. 14, pp. 11245--11258, 2026, doi: 10.1109/ACCESS.2026.3715574.
-
-
 
 \bibitem{mitra2026logo} P. Mitra, S. Ghosh, and U. Pal, ``Learning beyond labels: Self-supervised handwritten text recognition,'' in \emph{Proc. IEEE/CVF Winter Conf. Appl. Comput. Vis. (WACV)}, 2026, pp. 643--652, doi: 10.1109/WACV61042.2026.00643.
 
-
-
 \bibitem{kim2026drethtr} S. Kim, Y. Lee, and J. Park, ``DRetHTR: Decoder-only retentive network for handwritten text recognition,'' \emph{arXiv preprint arXiv:2602.17387}, 2026.
-
-
 
 \bibitem{garridomunoz2026survey} I. Garrido-Munoz, A. Forn{\'e}s, and J. Llad{\'o}s, ``Handwritten text recognition: A comprehensive survey of architectures, benchmarks, and future challenges,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, early access, 2026, doi: 10.1109/TPAMI.2025.3646002.
 
-
-
 \bibitem{louloudis2009} G. Louloudis, B. Gatos, I. Pratikakis, and C. Halatsis, ``Text line and word segmentation of handwritten documents,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, vol. 31, no. 1, pp. 145--160, Jan. 2009, doi: 10.1109/TPAMI.2008.57.
-
-
 
 \bibitem{wahl1982} F. M. Wahl, K. Y. Wong, and R. G. Casey, ``Block segmentation and text extraction in mixed text/image documents,'' \emph{Comput. Graph. Image Process.}, vol. 20, no. 4, pp. 375--390, Dec. 1982.
 
-
-
 \bibitem{shapiro2013} V. Shapiro, G. Gluhchev, and D. Tsaneva, ``Text line extraction in historical documents based on seam carving,'' in \emph{Proc. 12th Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2013, pp. 1175--1179.
-
-
 
 \bibitem{saabni2014} R. Saabni and J. El-Sana, ``Hierarchical text line segmentation for historical Arabic manuscripts,'' \emph{Int. J. Doc. Anal. Recognit.}, vol. 17, no. 2, pp. 185--197, Jun. 2014.
 
-
-
 \bibitem{otsu1979} N. Otsu, ``A threshold selection method from gray-level histograms,'' \emph{IEEE Trans. Syst., Man, Cybern.}, vol. 9, no. 1, pp. 62--66, Jan. 1979, doi: 10.1109/TSMC.1979.4310076.
-
-
 
 \bibitem{chen2019} K. Chen, M. Seuret, M. Liwicki, and J. Hennebert, ``Page segmentation of historical document images with convolutional neural networks,'' in \emph{Proc. 14th IAPR Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2017, pp. 1011--1016.
 
-
-
 \bibitem{zheng2013} Y. Zheng, H. Li, and D. Doermann, ``Machine printed text and handwriting identification in noisy complex documents,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, vol. 26, no. 3, pp. 396--405, Mar. 2004.
-
-
 
 \bibitem{fischer2011transcription} A. Fischer, A. Keller, V. Frinken, and H. Bunke, ``Transcription alignment of historical documents using hidden Markov models,'' in \emph{Proc. 11th Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2011, pp. 1294--1298.
 
-
-
 \bibitem{kleber2013cvl} F. Kleber, S. Fiel, M. Diem, and R. Sablatnig, ``CVL-Database: An off-line database for writer retrieval, writer identification and handwriting recognition,'' in \emph{Proc. 12th Int. Conf. Doc. Anal. Recognit. (ICDAR)}, 2013, pp. 560--564, doi: 10.1109/ICDAR.2013.117.
 
-
-
 \end{thebibliography}
-
-
 
 \end{document}
 

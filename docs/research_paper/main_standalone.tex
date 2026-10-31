@@ -26,6 +26,12 @@
 
 \date{\small \today}
 
+\raggedbottom
+\setlength{\abovedisplayskip}{3pt plus 1pt minus 1pt}
+\setlength{\belowdisplayskip}{3pt plus 1pt minus 1pt}
+\setlength{\abovedisplayshortskip}{1pt plus 1pt minus 1pt}
+\setlength{\belowdisplayshortskip}{1pt plus 1pt minus 1pt}
+
 \begin{document}
 
 \twocolumn[
@@ -100,15 +106,11 @@ Let $\mathbf{I}_{\text{gray}} \in \mathbb{R}^{H \times W}$ represent the input i
 
 \subsubsection{Illumination Normalization via Background Closure}
 Non-uniform lighting and smartphone shadows are leveled by estimating the background surface $\mathbf{B}_{\text{illum}}$ via morphological grayscale closing parameterized by $\text{med\_h}$:
-\begin{equation}
-S_{\text{light}} = \text{rect}(2 \cdot \text{med\_h}, 2 \cdot \text{med\_h})
-\end{equation}
-\begin{equation}
-\mathbf{B}_{\text{illum}} = (\mathbf{I}_{\text{gray}} \oplus S_{\text{light}}) \ominus S_{\text{light}}
-\end{equation}
-\begin{equation}
-\mathbf{I}_{\text{norm}}(x, y) = \min\left(255, \left\lfloor \frac{\mathbf{I}_{\text{gray}}(x, y)}{\max(\mathbf{B}_{\text{illum}}(x, y), 1)} \times 255 \right\rfloor\right)
-\end{equation}
+\begin{align}
+S_{\text{light}} &= \text{rect}(2 \cdot \text{med\_h}, 2 \cdot \text{med\_h}) \label{eq:s_light} \\
+\mathbf{B}_{\text{illum}} &= (\mathbf{I}_{\text{gray}} \oplus S_{\text{light}}) \ominus S_{\text{light}} \label{eq:b_illum_sp} \\
+\mathbf{I}_{\text{norm}}(x, y) &= \min\left(255, \left\lfloor \frac{\mathbf{I}_{\text{gray}}(x, y)}{\max(\mathbf{B}_{\text{illum}}(x, y), 1)} \times 255 \right\rfloor\right) \label{eq:i_norm}
+\end{align}
 
 \subsubsection{Angular Deskewing & Ruled Line Suppression}
 Contour points are fitted to $\mathcal{R}_{\text{min}} = \text{minAreaRect}(\mathcal{P}_{\text{ink}})$, extracting angle $\theta \in [-30^\circ, +30^\circ]$. Rotation matrix $\mathbf{R}(-\theta)$ restores alignment. Ruled lines are detected and subtracted using horizontal structuring element $K_{\text{line}} = \text{rect}(2.5 \cdot \text{med\_h}, 1)$:
@@ -129,18 +131,18 @@ Input line strips $\mathbf{X} \in \mathbb{R}^{64 \times 1024 \times 1}$ are proc
 \begin{enumerate}
     \item \textbf{6x Residual GatedConv2D Blocks:} 
     \begin{equation}
-    \mathbf{Y} = (\mathbf{X} * \mathbf{W}_f + \mathbf{b}_f) \odot \sigma(\mathbf{X} * \mathbf{W}_g + \mathbf{b}_g)
-    \end{equation}
+\mathbf{Y} = (\mathbf{X} * \mathbf{W}_f + \mathbf{b}_f) \odot \sigma(\mathbf{X} * \mathbf{W}_g + \mathbf{b}_g)
+\end{equation}
     where spatial gating signal $\mathbf{G} = \sigma(\cdot) \in [0, 1]$ suppresses background texture noise.
     \item \textbf{Multi-Head Self-Attention (MHSA):} 8 heads ($d_k=32$) capture long-range cursive stroke dependencies:
     \begin{equation}
-    \text{MHSA}(\mathbf{T}) = \text{Concat}(\text{head}_1, \dots, \text{head}_8)\mathbf{W}^O
-    \end{equation}
+\text{MHSA}(\mathbf{T}) = \text{Concat}(\text{head}_1, \dots, \text{head}_8)\mathbf{W}^O
+\end{equation}
     \item \textbf{3x Stacked BiLSTM:} 256 forward and 256 backward units model bidirectional spelling contexts.
     \item \textbf{Beam-Search-Derived CTC Sequence Likelihood:} CTC beam search ($W=32$) yields candidate text transcripts along with an uncalibrated sequence likelihood:
     \begin{equation}
-    \hat{P}(\hat{\mathbf{y}} \mid \mathbf{X}) = \exp\left(\log P_{\text{beam}}(\hat{\mathbf{y}} \mid \mathbf{X})\right)
-    \end{equation}
+\hat{P}(\hat{\mathbf{y}} \mid \mathbf{X}) = \exp\left(\log P_{\text{beam}}(\hat{\mathbf{y}} \mid \mathbf{X})\right)
+\end{equation}
     representing the exponentiated top-path decoder probability. Because sequence likelihood is evaluated over finite beam search candidates without full-path partition normalization, it serves as an uncalibrated relative score rather than an exact posterior probability.
 \end{enumerate}
 
