@@ -1,9 +1,7 @@
-# Scale-Adaptive Document Conditioning and Gated CNN-Attention-BiLSTM Recognition for Multi-Dataset Offline Handwritten Text Recognition
+# Handwritten Text Recognition using Vision Transformers
 
-**Author:** A. Venkata Balaji (Registration No: 23BCE20336)  
-**Affiliation:** School of Computer Science and Engineering, Vellore Institute of Technology (VIT), Vellore, Tamil Nadu 632014, India  
+**Author:** A. Venkata Balaji  
 **Target Venue:** IEEE Access (Special Section on Advances in Document Analysis and Recognition)  
-**Project Repository & Artifacts:** [https://github.com/Balaji268268/HandwrittenTextRecognition](https://github.com/Balaji268268/HandwrittenTextRecognition)  
 
 ---
 
