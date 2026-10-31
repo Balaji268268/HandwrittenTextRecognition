@@ -182,8 +182,10 @@ Saint Gall     [Omitted during Colab export]   [Omitted during Colab export]    
 ========================================================================================================================
 *Note on Parameter Scaling: Across all checkpoints, parameters scale strictly via P_total = 1,562,516 + 257C, where C
 equals the final Dense layer dimension stored in the HDF5 weights and tokenizer lexical_shape[-1].
-**Note on MLflow Provenance: saved_models/mlflow.db contains six run records belonging to experiments iam (3 runs) and
-iam_combined (3 runs). Primary quantitative benchmark provenance is recorded in the frozen execution outputs of tutorial_colab.ipynb.
+**Note on Experimental Provenance & Evidence Hierarchy:
+1. Training Artifacts & Convergence: Stored in saved_models/ and the companion MLflow run artifact package, establishing epoch-by-epoch loss convergence, validation edit distance, model weights, and tokenizer vocabularies.
+2. Academic Test Benchmarks: Reported test CER/WER metrics (Parzival: 2.48% CER; ORAND-CAR-A: 3.33% CER; Saint Gall: 8.38% CER; CVL Digits: 50.78% CER) are established via the frozen execution evaluations in tutorial_colab.ipynb (Cells 27-30).
+3. MLflow Database Tracking: saved_models/mlflow.db records six run records (five finished, one failed) across experiments iam and iam_combined.
 ```
 
 ---
