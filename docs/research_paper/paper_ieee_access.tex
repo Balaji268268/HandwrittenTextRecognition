@@ -18,7 +18,7 @@
 
 \begin{document}
 
-\title{Scale-Adaptive Document Conditioning and Attention-Guided Sequence Recognition for Cross-Domain Offline Handwritten Text Recognition}
+\title{Scale-Adaptive Document Conditioning and Multi-Head Gated Convolutional Networks for Multi-Dataset Offline Handwritten Text Recognition}
 
 \author{A.~Venkata~Balaji, \IEEEmembership{Student Member,~IEEE}
 \thanks{A. Venkata Balaji (Registration No: 23BCE20336) is with the School of Computer Science and Engineering, Vellore Institute of Technology (VIT), Vellore, Tamil Nadu 632014, India (e-mail: galigastagiramma@gmail.com).}
@@ -26,7 +26,7 @@
 }
 
 \markboth{IEEE Access,~Vol.~14,~2026}%
-{Balaji: Scale-Adaptive Document Conditioning and Attention-Guided Sequence Recognition}
+{Balaji: Scale-Adaptive Document Conditioning and Multi-Head Gated Convolutional Networks for Multi-Dataset Offline HTR}
 
 \maketitle
 
@@ -35,7 +35,7 @@ Offline Handwritten Text Recognition (HTR) remains a formidable challenge in doc
 
 In this paper, we propose a holistic, production-grade HTR framework that bridges this operational divide through the tight coupling of a parameter-free \textbf{Scale-Adaptive Document Conditioning Engine} with a lightweight \textbf{Gated-CNN + Multi-Head Self-Attention + Bidirectional LSTM + CTC} sequence recognition architecture ($1.58\text{M}$ parameters). The document conditioning stage adaptively estimates characteristic median stroke height ($\text{med\_h}$) to normalize image scale, suppresses ruled notebook lines via morphological opening, eliminates smartphone shadow gradients via background closure division, segments dense multi-line letter manuscripts using projection-profile valley splitting, and eliminates non-text doodle hallucinations using an un-dilated aspect-ratio filter. 
 
-We conduct a forensic multi-domain evaluation across five real-world historical, administrative, and financial benchmarks (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits). Our compact $1.58\text{M}$ parameter model achieves \textbf{2.48\%} test Character Error Rate (CER) and \textbf{8.53\%} Word Error Rate (WER) on the Parzival medieval German corpus, \textbf{3.33\%} test CER on ORAND-CAR-A bank checks, and \textbf{8.38\%} test CER on Saint Gall, while running at \textbf{27.5 ms} inference latency ($39.5\times$ smaller than TrOCR-Small). Furthermore, we present an empirical investigation of validation-to-test generalization gap on CVL Digits ($6.93\%$ validation edit distance vs. $50.78\%$ test CER) and validate the component-wise contributions of gating, self-attention, and morphological conditioning without external pretrained weights.
+We conduct a rigorous multi-dataset evaluation across five real-world historical, administrative, and financial benchmarks (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits). Our compact $1.58\text{M}$ parameter model achieves \textbf{2.48\%} test Character Error Rate (CER) and \textbf{8.53\%} Word Error Rate (WER) on the Parzival medieval German corpus, \textbf{3.33\%} test CER on ORAND-CAR-A bank checks, and \textbf{8.38\%} test CER on Saint Gall, while running at \textbf{27.5 ms} inference latency ($39.5\times$ smaller than TrOCR-Small). Furthermore, we present an empirical investigation of validation-to-test generalization gap on CVL Digits ($6.93\%$ validation edit distance vs. $50.78\%$ test CER) and validate the component-wise contributions of gating, self-attention, and morphological conditioning without external pretrained weights.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -58,7 +58,7 @@ When deployed into uncontrolled real-world workflows---such as clinical health r
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.95\textwidth]{figures/fig1_architecture.png}
-\caption{End-to-end processing pipeline of the proposed HTR framework. The system combines: (1) Stage 1: Scale-Adaptive Document Conditioning Engine performing dynamic median stroke height ($\text{med\_h}$) estimation, closure-division illumination correction, deskewing, ruled line suppression, valley-splitting line segmentation, and doodle discrimination; (2) Stage 2: Deep Gated-CNN + MHSA + BiLSTM neural feature extractor ($1.58\text{M}$ parameters); and (3) Stage 3: Exact CTC beam search decoding with posterior probability calibration.}
+\caption{End-to-end processing pipeline of the proposed HTR framework. The system combines: (1) Stage 1: Scale-Adaptive Document Conditioning Engine performing dynamic median stroke height ($\text{med\_h}$) estimation, closure-division illumination correction, deskewing, ruled line suppression, valley-splitting line segmentation, and doodle discrimination; (2) Stage 2: Deep Gated-CNN + MHSA + BiLSTM neural feature extractor ($1.58\text{M}$ parameters); and (3) Stage 3: Exact CTC beam search decoding with joint sequence probability evaluation and geometric quality rejection.}
 \label{fig:architecture}
 \end{figure*}
 
@@ -77,7 +77,7 @@ To establish an empirical and theoretical foundation for robust, lightweight, no
     \item \textbf{RQ1:} To what extent does scale-adaptive conditioning (dynamic stroke height estimation, closure division, line suppression) improve text line segmentation and stroke integrity on unconstrained documents?
     \item \textbf{RQ2:} What is the isolated empirical contribution of Gated Convolutions versus standard convolutions in attenuating background noise and paper texture artifacts?
     \item \textbf{RQ3:} Does Multi-Head Self-Attention provide complementary global contextual dependencies to bidirectional recurrent networks for variable-length handwriting sequences?
-    \item \textbf{RQ4:} How does multi-domain transfer learning and warm-started step-capped optimization across Latin, Medieval, and financial corpora impact convergence rate and final transcription error?
+    \item \textbf{RQ4:} What is the empirical impact of transfer warm-starting from a baseline prose model versus training from scratch on diverse handwriting scripts?
     \item \textbf{RQ5:} What causes the severe generalization drop observed on CVL Digits ($6.93\%$ validation edit distance vs. $50.78\%$ test CER), and what does this reveal about digit-string distribution shift?
     \item \textbf{RQ6:} What are the parameter efficiency and latency trade-offs of the proposed $1.58\text{M}$ architecture compared to Vision Transformer backbones (TrOCR) under resource-constrained conditions?
 \end{itemize}
@@ -90,7 +90,7 @@ The primary contributions of this paper are summarized as follows:
     \item \textbf{Valley-Splitting Line Slicing & Doodle Discrimination:} We design a projection-profile valley-splitting algorithm capable of cleanly segmenting dense multi-line paragraphs, integrated with an un-dilated aspect ratio discrimination filter ($AR_{\text{true}} < 1.8 \land H > 0.9 \cdot \text{med\_h}$) that systematically rejects non-text doodles, preventing model hallucination.
     \item \textbf{Lightweight Hybrid Neural Architecture ($1.58\text{M}$ Parameters):} We engineer a deep sequence model combining seven convolutional stages with six interleaved residual Gated-CNN blocks (which dynamically filter paper noise via spatial gating), a two-head Multi-Head Self-Attention layer ($h=2, d_k=8$), and three Bidirectional LSTM layers with Connectionist Temporal Classification (CTC). The architecture comprises exactly $1,583,847$ parameters for vocabulary size $C=83$, governed by the closed-form scaling equation $P_{\text{total}} = 1,562,516 + 257C$, and runs in $27.5\text{ ms}$ per line.
     \item \textbf{Exact CTC Sequence Joint Probability Formulation:} We implement a mathematically bounded sequence probability formulation, establishing that $P = \exp(\log P_{\text{CTC}}) \times 100\%$ computes the sequence joint probability under marginalized CTC alignment paths to flag severe visual noise and unrecognizable inputs ($< 0.01\%$). Furthermore, our un-dilated aspect ratio filter ($AR_{\text{true}} < 1.8 \land H > 0.9 \cdot \text{med\_h}$) serves as an effective geometric heuristic to reject squarish non-text doodles.
-    \item \textbf{Multi-Domain Empirical Validation:} We conduct rigorous multi-dataset evaluations across five distinct handwriting corpora (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits), establishing high transcription accuracy on medieval German ($2.48\%$ test CER) and bank checks ($3.33\%$ test CER) while systematically analyzing the performance and distribution shift in unconstrained digit strings.
+    \item \textbf{Multi-Dataset Empirical Evaluation:} We conduct rigorous multi-dataset evaluations across five distinct handwriting corpora (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits), establishing high transcription accuracy on medieval German ($2.48\%$ test CER) and bank checks ($3.33\%$ test CER) while systematically analyzing the performance and distribution shift in unconstrained digit strings.
 \end{enumerate}
 
 \section{Related Work}
@@ -115,7 +115,7 @@ Document layout analysis and line extraction in unconstrained environments remai
 \end{figure*}
 
 \section{Proposed Methodology}
-The proposed offline HTR framework operates across three tightly integrated stages: (1) Stage 1: Scale-Adaptive Document Conditioning Engine; (2) Stage 2: Deep Gated-CNN + MHSA + BiLSTM Neural Architecture; and (3) Stage 3: Exact Posterior CTC Decoding with Domain Post-Processing.
+The proposed offline HTR framework operates across three tightly integrated stages: (1) Stage 1: Scale-Adaptive Document Conditioning Engine; (2) Stage 2: Deep Gated-CNN + MHSA + BiLSTM Neural Architecture; and (3) Stage 3: Exact CTC Sequence Joint Probability Decoding and Geometric Quality Rejection.
 
 \subsection{Stage 1: Scale-Adaptive Document Conditioning Engine}
 Unconstrained mobile captures and document scans exhibit substantial variation in spatial resolution, camera distance, ambient illumination, document tilt, and extraneous visual artifacts. Rather than relying on rigid, empirically tuned pixel kernels, our conditioning engine dynamically anchors all geometric and morphological operations to the document's intrinsic stroke scale.
@@ -303,8 +303,12 @@ The model is trained end-to-end by minimizing the CTC negative log-likelihood:
 \mathcal{L}_{\text{CTC}} = -\ln P(\mathbf{y} \mid \mathbf{X})
 \end{equation}
 
-\subsection{Stage 3: Posterior CTC Confidence Formulation & Domain Normalization}
-During beam search decoding, TensorFlow computes the sequence log-probability $\log P(\hat{\mathbf{y}} \mid \mathbf{X}) \in (-\infty, 0]$. We define the mathematically exact sequence posterior confidence:
+\subsection{Stage 3: Exact CTC Sequence Joint Probability Formulation & Geometric Quality Rejection}
+During beam search decoding, TensorFlow evaluates candidate sequence hypotheses by computing the sequence log-likelihood under marginalized CTC alignment paths:
+\begin{equation}
+P(\hat{\mathbf{y}} \mid \mathbf{X}) = \sum_{\pi \in \mathcal{B}^{-1}(\hat{\mathbf{y}})} \prod_{t=1}^T P(\pi_t \mid \mathbf{X})
+\end{equation}
+where $\log P(\hat{\mathbf{y}} \mid \mathbf{X}) \in (-\infty, 0]$. We formulate the sequence confidence via the exact joint likelihood:
 \begin{equation}
 \text{Confidence}(\hat{\mathbf{y}}) = \exp\left( \log P(\hat{\mathbf{y}} \mid \mathbf{X}) \right) \times 100\%
 \end{equation}
@@ -315,7 +319,7 @@ Numerically implemented with boundary guarding:
 \min\left(100.0, \max\left(0.0, e^{\log P} \times 100\right)\right), & \text{otherwise}
 \end{cases}
 \end{equation}
-Clean handwriting sequences score $85\% - 99\%$, whereas non-text doodles and extreme noise yield $\log P < -12.0$, evaluating to $< 0.01\%$.
+Because raw CTC sequence joint probabilities decrease monotonically with sequence length and are not strictly calibrated posterior probabilities across variable-length inputs without temperature scaling, this metric functions as a highly sensitive operational threshold: legitimate handwriting sequences score $85\% - 99\%$, whereas non-text visual artifacts, blank inputs, and extreme noise yield $\log P < -12.0$, evaluating to $< 0.01\%$. Non-text drawings and doodles that escape thresholding are eliminated beforehand in Stage~1 using the un-dilated aspect-ratio geometric heuristic ($AR_{\text{true}} < 1.8 \land H_{\text{ink}} > 0.9 \cdot \text{med\_h}$).
 
 \section{Experimental Setup & Training Protocol}
 
@@ -377,7 +381,7 @@ The model achieves exceptional transcription accuracy on the Parzival medieval c
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.92\textwidth]{figures/fig4_benchmark_comparison.png}
-\caption{(a) Multi-domain benchmark performance comparing framework validation edit distance with independent test CER across historical, financial, and modern prose corpora. (b) Performance comparison against state-of-the-art architectures on the Parzival benchmark.}
+\caption{(a) Multi-dataset benchmark performance comparing framework validation edit distance with independent test CER across historical, financial, and modern prose corpora. (b) Performance comparison against state-of-the-art architectures on the Parzival benchmark.}
 \label{fig:comparison}
 \end{figure*}
 
@@ -441,7 +445,7 @@ To examine the conceptual contributions of the individual conditioning and neura
 \end{itemize}
 
 \section{Conclusion}
-In this paper, we presented a comprehensive, scale-adaptive offline Handwritten Text Recognition framework engineered for robust multi-domain performance without external pretrained foundation models. By coupling a parameter-free Scale-Adaptive Document Conditioning Engine with a lightweight Gated-CNN + MHSA + BiLSTM neural network ($1.58\text{M}$ parameters), our system overcomes critical failure modes encountered in real-world deployment: mobile shadows, uncalibrated DPI scale, document skew, ruled notebook interference, multi-line letter fusion, and non-text doodle hallucination. 
+In this paper, we presented a comprehensive, scale-adaptive offline Handwritten Text Recognition framework engineered for robust multi-dataset performance without external pretrained foundation models. By coupling a parameter-free Scale-Adaptive Document Conditioning Engine with a lightweight Gated-CNN + MHSA + BiLSTM neural network ($1.58\text{M}$ parameters), our system overcomes critical failure modes encountered in real-world deployment: mobile shadows, uncalibrated DPI scale, document skew, ruled notebook interference, multi-line letter fusion, and non-text doodle hallucination. 
 
 Evaluated across five distinct benchmarks, the proposed system achieves \textbf{2.48\%} test CER on the Parzival medieval corpus, \textbf{3.33\%} test CER on ORAND-CAR-A bank checks, and \textbf{8.38\%} test CER on Saint Gall, while running in \textbf{27.5 ms} per line. Furthermore, our diagnostic investigation elucidates the challenge of unconstrained digit distribution shift on CVL Digits ($50.78\%$ test CER), establishing that sequence decoders require explicit language priors or length-invariant augmentation for numerical transcription. Future work will investigate self-supervised sequence pretraining and adaptive length-invariant decoders for unconstrained financial and administrative documents.
 
