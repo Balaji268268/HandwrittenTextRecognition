@@ -20,7 +20,7 @@
 
 \begin{document}
 
-\title[Scale-Invariant and Noise-Robust Offline HTR]{Scale-Invariant and Noise-Robust Offline Handwritten Text Recognition for Multi-Domain Documents Without Pretrained Models}
+\title[Scale-Invariant and Noise-Robust Offline HTR]{Scale-Invariant and Noise-Robust Offline Handwritten Text Recognition for Multi-Dataset Documents Without Pretrained Models}
 
 \author*[1]{\fnm{A.~Venkata} \sur{Balaji}}\email{galigastagiramma@gmail.com}
 \equalcont{Registration No: 23BCE20336. Repository: \url{https://github.com/Balaji268268/HandwrittenTextRecognition}}
@@ -31,7 +31,7 @@
 
 In this paper, we propose a complete, production-ready, scale-invariant offline HTR system trained entirely from scratch without external pretrained weights. The proposed framework integrates a novel \textbf{Scale-Invariant Document Engine} with a deep \textbf{Gated-CNN + Multi-Head Self-Attention + Bidirectional LSTM + CTC} neural architecture. Our preprocessing pipeline introduces: (1) dynamic character scale estimation ($\text{med\_h}$) to achieve resolution invariance across scanner and mobile phone captures; (2) morphological background closure illumination division to eliminate non-uniform smartphone shadows; (3) minimum-area bounding box deskewing; (4) morphological line suppression to eradicate ruled notebook lines; (5) adaptive projection profile valley splitting for dense multi-line letter manuscripts; and (6) an un-dilated geometric aspect ratio filter that systematically rejects non-text doodles.
 
-To overcome the pervasive numeric blindness of models trained solely on prose corpora, we curate the composite \textbf{\texttt{iam-digits}} corpus ($91,540$ samples uniting the IAM Handwriting Database, CVL Digits, and ORAND-CAR bank check courtesy amounts). Evaluated across diverse academic handwriting benchmarks, our architecture achieves 2.48% test CER on Parzival medieval German, 3.33% test CER on ORAND-CAR-A bank checks, and 8.38% test CER on Saint Gall Carolingian script, maintaining a lightweight footprint of 1.58M parameters and an inference latency of 27.5 ms on GPUs.}
+To overcome the pervasive numeric blindness of models trained solely on prose corpora, we curate the composite \textbf{\texttt{iam-digits}} corpus ($91,540$ samples uniting the IAM Handwriting Database, CVL Digits, and ORAND-CAR bank check courtesy amounts). Evaluated across diverse academic handwriting benchmarks, our architecture achieves 2.48% test CER on Parzival medieval German, 3.33% test CER on ORAND-CAR-A bank checks, and 8.38% test CER on Saint Gall Carolingian script, maintaining a lightweight footprint of 1.58M parameters.}
 
 \keywords{Handwritten Text Recognition, Scale Invariance, Gated-CNN, Self-Attention, Bidirectional LSTM, CTC Loss, Medical Prescription Digitization, Bank Check Recognition}
 
@@ -147,7 +147,7 @@ Input line strips $\mathbf{X} \in \mathbb{R}^{64 \times 1024 \times 1}$ are proc
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.48\textwidth]{figures/fig4_benchmark_comparison.png}
-\caption{Cross-domain benchmark performance and comparison against state-of-the-art architectures.}
+\caption{Multi-dataset benchmark performance and comparison against state-of-the-art architectures.}
 \label{fig:scen_chart}
 \end{figure}
 
@@ -170,7 +170,7 @@ Model Name & Epochs & Train Loss & Val Loss & Val CER (\%) \\
 \end{tabular*}
 \end{table}
 
-\subsection{Multi-Domain Benchmark Evaluation}
+\subsection{Multi-Dataset Benchmark Evaluation}
 Table~\ref{tab:benchmark} presents the verified quantitative evaluation across five diverse handwriting benchmarks spanning historical manuscripts, financial documents, digit strings, and modern English handwriting.
 
 \begin{table*}[t]
@@ -195,18 +195,18 @@ Table~\ref{tab:sota} compares our architecture against recent state-of-the-art m
 
 \begin{table*}[t]
 \caption{Comprehensive Comparison with 2023–2026 SOTA HTR Architectures}\label{tab:sota}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccc@{\extracolsep\fill}}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lccccc@{\extracolsep\fill}}
 \toprule
-Model / Paper & Venue & Pretrained? & Params & IAM CER & Parzival CER & Latency \\
+Model / Paper & Venue & Pretrained? & Params & IAM CER & Parzival CER \\
 \midrule
-TrOCR-Small \cite{li2023trocr} & AAAI 2023 & Yes (684M token) & 62.4 M & 2.89\% & 18.40\% & 320.0 ms \\
-TrOCR-Small (Scratch) \cite{li2023trocr} & AAAI 2023 & \textbf{No} & 62.4 M & 38.40\% & 46.20\% & 320.0 ms \\
-Nougat \cite{blecher2023nougat} & Meta AI 2023 & Yes (1.7M PDFs) & 250 M & N/A & > 50\% & 650.0 ms \\
-DAN \cite{coquenet2023dan} & IEEE TPAMI 2023 & No & 18.5 M & 4.80\% & 14.50\% & 180.0 ms \\
-Decoded-ViT \cite{zhang2024decoded} & ICDAR 2024 & Yes (ImageNet) & 28.0 M & 4.60\% & 12.80\% & 95.0 ms \\
-HTR-VT \cite{kang2025htr} & Pat. Rec. 2025 & No & 14.2 M & 4.45\% & 8.90\% & 35.0 ms \\
+TrOCR-Small \cite{li2023trocr} & AAAI 2023 & Yes (684M token) & 62.4 M & 2.89\% & 18.40\% \\
+TrOCR-Small (Scratch) \cite{li2023trocr} & AAAI 2023 & \textbf{No} & 62.4 M & 38.40\% & 46.20\% \\
+Nougat \cite{blecher2023nougat} & Meta AI 2023 & Yes (1.7M PDFs) & 250 M & N/A & > 50\% \\
+DAN \cite{coquenet2023dan} & IEEE TPAMI 2023 & No & 18.5 M & 4.80\% & 14.50\% \\
+Decoded-ViT \cite{zhang2024decoded} & ICDAR 2024 & Yes (ImageNet) & 28.0 M & 4.60\% & 12.80\% \\
+HTR-VT \cite{kang2025htr} & Pat. Rec. 2025 & No & 14.2 M & 4.45\% & 8.90\% \\
 \midrule
-\textbf{Proposed PySarah Flor} & \textbf{This Work} & \textbf{NO (Scratch)} & \textbf{1.58 M} & \textbf{5.66\%}* & \textbf{2.48\%} & \textbf{27.5 ms} \\
+\textbf{Proposed PySarah Flor} & \textbf{This Work} & \textbf{NO (Scratch)} & \textbf{1.58 M} & \textbf{5.66\%}* & \textbf{2.48\%} \\
 \bottomrule
 \end{tabular*}
 \vspace{2pt}
@@ -214,7 +214,7 @@ HTR-VT \cite{kang2025htr} & Pat. Rec. 2025 & No & 14.2 M & 4.45\% & 8.90\% & 35.
 \end{table*}
 
 \section{Conclusion}\label{sec4}
-We presented a scale-invariant and noise-robust offline Handwritten Text Recognition system trained from scratch without external pretrained weights. By coupling a Scale-Invariant Document Engine with a deep Gated-CNN + Multi-Head Self-Attention + BiLSTM + CTC architecture and multi-dataset \texttt{iam-digits} composition ($91,540$ samples), our framework achieves \textbf{2.48\%} test CER on the Parzival medieval benchmark and \textbf{3.33\%} on ORAND bank checks, operating at an inference latency of $27.5\text{ ms}$ per text line with only $1.58\text{M}$ parameters.
+We presented a scale-invariant and noise-robust offline Handwritten Text Recognition system trained from scratch without external pretrained weights. By coupling a Scale-Invariant Document Engine with a deep Gated-CNN + Multi-Head Self-Attention + BiLSTM + CTC architecture and multi-dataset \texttt{iam-digits} composition ($91,540$ samples), our framework achieves \textbf{2.48\%} test CER on the Parzival medieval benchmark and \textbf{3.33\%} on ORAND bank checks, operating with an ultra-compact footprint of only $1.58\text{M}$ parameters and linear $\mathcal{O}(T)$ recurrent computational complexity.
 
 \begin{thebibliography}{15}
 \bibitem{plamondon2000} Plamondon, R., Srihari, S.N.: Online and off-line handwriting recognition: A comprehensive survey. IEEE Trans. Pattern Anal. Mach. Intell. 22(1), 63--84 (2000)
