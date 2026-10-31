@@ -14,7 +14,7 @@ Offline Handwritten Text Recognition (HTR) remains a challenging computer vision
 In this paper, we propose a holistic, production-grade HTR framework that operates without massive pretrained foundation models. Our framework integrates:
 1. A **Scale-Adaptive Document Conditioning Engine** that dynamically computes median stroke height ($\text{med\_h}$) to standardize inputs, levels non-uniform shadows via morphological closure division, deskews canvas tilt, and segments dense text lines using projection valley-splitting coupled with a two-tier un-dilated aspect-ratio and vertical position geometric heuristic ($AR < 1.7$ on segmented slices, $AR_{\text{true}} < 1.8$ on candidate regions) to systematically reject non-text doodles.
 2. A lightweight **Hybrid Neural Sequence Architecture** consisting of seven Conv2D stages with six interleaved residual Gated-CNN blocks, a two-head Multi-Head Self-Attention (MHSA) layer ($h=2, d_k=8$), and three stacked Bidirectional LSTM layers with Connectionist Temporal Classification (CTC). The model comprises only **1.58M parameters** ($1,583,847$ parameters for vocabulary size $C=83$), scaling strictly via the closed-form relation $P_{\text{total}} = 1,562,516 + 257C$.
-3. An exact **CTC Sequence Joint Probability Formulation** that computes sequence likelihoods under marginalized alignment paths to serve as an uncalibrated hypothesis metric under the model distribution.
+3. A **Beam-Search-Derived CTC Sequence Likelihood & Quality Filtering** scheme that computes uncalibrated sequence scores ($\hat{P} = \exp(\log P_{\text{beam}})$) from finite beam search ($W=32$) and enforces dual-tier quality filtering for degraded text lines.
 
 Evaluated across five diverse academic handwriting benchmarks, the proposed system achieves **2.48% test CER** (8.53% WER) on the 13th-century German *Parzival* codex, **3.33% test CER** on *ORAND-CAR-A* bank check courtesy amounts, and **8.38% test CER** (41.62% WER) on the 9th-century Latin *Saint Gall* manuscript. On the *IAM Combined* English corpus, the model achieves a best validation normalized edit distance of **5.66%** at epoch 12 under step-capped optimization. Furthermore, our evaluation reveals a substantial validation-to-test generalization gap on *CVL Digits* ($6.93\%$ validation edit distance vs. $50.78\%$ test CER), providing a diagnostic finding and open hypothesis regarding unconstrained numeral sequence length drift and the absence of lexical priors in pure numeric recognition.
 
@@ -98,10 +98,10 @@ Grand Total Parameters (C=83, IAM Modern English)                     1,583,847
 ========================================================================================================================
 ```
 
-### C. Stage 3: Exact CTC Sequence Joint Probability Formulation
-Candidate hypotheses $\hat{\mathbf{y}}$ from beam search ($W=32$) evaluate the exact sequence likelihood marginalized over valid CTC alignment paths:
-$$P(\hat{\mathbf{y}} \mid \mathbf{X}) = \sum_{\pi \in \mathcal{B}^{-1}(\hat{\mathbf{y}})} \prod_{t=1}^T P(\pi_t \mid \mathbf{X})$$
-Confidence is computed directly as $\text{Confidence}(\hat{\mathbf{y}}) = \exp(\log P(\hat{\mathbf{y}} \mid \mathbf{X})) \times 100\%$. Because raw CTC sequence probabilities decrease monotonically with sequence length and are not calibrated posterior probabilities across variable-length sequences without temperature scaling, this metric functions strictly as an uncalibrated sequence hypothesis likelihood under the model distribution.
+### C. Stage 3: Beam-Search-Derived CTC Sequence Likelihood & Quality Filtering
+Candidate hypotheses $\hat{\mathbf{y}}$ from beam search ($W=32$) yield top-path candidate transcriptions evaluated via `tf.nn.ctc_beam_search_decoder` in `sarah/models/components/base.py`, returning log-probabilities exponentiated as:
+$$\hat{P}(\hat{\mathbf{y}} \mid \mathbf{X}) = \exp\left(\log P_{\text{beam}}(\hat{\mathbf{y}} \mid \mathbf{X})\right)$$
+Because finite-width beam search explores a bounded candidate path set rather than an exhaustive lattice marginalization, $\hat{P}(\hat{\mathbf{y}} \mid \mathbf{X})$ provides an uncalibrated relative sequence likelihood rather than an exact posterior probability. Furthermore, because sequence likelihoods are inherently sensitive to sequence length, this score serves as an uncalibrated hypothesis score rather than an absolute confidence metric across variable-length text lines. Non-text visual artifacts and squarish drawings are filtered beforehand during document conditioning in Stage 1 using geometric aspect-ratio heuristics.
 
 ---
 
@@ -154,7 +154,7 @@ Puigcerver                            ICDAR 2017     No (Scratch)          9.6 M
 Bluche & Messina                      ICDAR 2017     No (Scratch)          4.2 M         5.40%           7.90%
 Flor et al.                           BRACIS 2020    No (Scratch)          8.8 M         3.85%           5.10%
 TrOCR-Small                           AAAI 2023      No (Scratch)          62.4 M        31.40%          38.40%
-TrOCR-Large                           AAAI 2023      Yes (684M Synth)      558 M         N/A             2.89%
+TrOCR-Large                           AAAI 2023      Yes (684M line images) 558 M        N/A             2.89%
 DAN (Document Attention Net)          TPAMI 2023     No (Scratch)          24.5 M        3.20%           4.80%
 HTR-VT (Vision Transformer)           PR 2025        No (Scratch)          18.2 M        4.90%           6.20%
 ------------------------------------------------------------------------------------------------------------------------
