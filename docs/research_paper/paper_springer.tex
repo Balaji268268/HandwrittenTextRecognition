@@ -20,7 +20,7 @@
 
 \begin{document}
 
-\title[Scale-Invariant and Noise-Robust Offline HTR]{Scale-Invariant and Noise-Robust Offline Handwritten Text Recognition for Multi-Dataset Documents Without Pretrained Models}
+\title[Scale-Adaptive Multi-Dataset HTR]{Scale-Adaptive Document Conditioning and Multi-Head Gated Convolutional Networks for Multi-Dataset Offline Handwritten Text Recognition}
 
 \author*[1]{\fnm{A.~Venkata} \sur{Balaji}}\email{galigastagiramma@gmail.com}
 \equalcont{Registration No: 23BCE20336. Repository: \url{https://github.com/Balaji268268/HandwrittenTextRecognition}}
@@ -197,7 +197,7 @@ Table~\ref{tab:sota} compares our architecture against recent state-of-the-art m
 \caption{Comprehensive Comparison with 2023–2026 SOTA HTR Architectures}\label{tab:sota}
 \begin{tabular*}{\textwidth}{@{\extracolsep\fill}lccccc@{\extracolsep\fill}}
 \toprule
-Model / Paper & Venue & Pretrained? & Params & IAM CER & Parzival CER \\
+Model / Paper & Venue & Pretrained? & Params & IAM Val Edit Dist (\%) & Parzival CER \\
 \midrule
 TrOCR-Small \cite{li2023trocr} & AAAI 2023 & Yes (684M token) & 62.4 M & 2.89\% & 18.40\% \\
 TrOCR-Small (Scratch) \cite{li2023trocr} & AAAI 2023 & \textbf{No} & 62.4 M & 38.40\% & 46.20\% \\

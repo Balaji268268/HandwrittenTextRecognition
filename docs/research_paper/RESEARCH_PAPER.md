@@ -148,7 +148,7 @@ To elucidate the design principles underlying the proposed framework without rel
 
 ```
 ========================================================================================================================
-Model / Architecture                  Publication    Pretrained Weights?   Parameters    Parzival CER    IAM CER
+Model / Architecture                  Publication    Pretrained Weights?   Parameters    Parzival CER    IAM Val Edit Dist (%)
 ========================================================================================================================
 Puigcerver                            ICDAR 2017     No (Scratch)          9.6 M         4.12%           5.80%
 Bluche & Messina                      ICDAR 2017     No (Scratch)          4.2 M         5.40%           7.90%
@@ -171,18 +171,19 @@ Addressing **RQ6**, our 1.58M parameter architecture achieves superior Character
 
 ```
 ========================================================================================================================
-Dataset        Trained Weights Checkpoint           Tokenizer Pickle                Notebook Provenance
+Corpus         Weights File (saved_models/)    Tokenizer Pickle                 Classes (C)   Parameters    Provenance
 ========================================================================================================================
-Parzival       saved_models/model_parzival.weights.h5      model_parzival_tokenizer.pkl    Cell 27 (1,328 test lines)
-ORAND-CAR-A    saved_models/model_orand-car-a.weights.h5   model_orand-car-a_tokenizer.pkl Cell 30 (3,784 test checks)
-Saint Gall     [Omitted during Colab export]               [Omitted during export]         Cell 28 (707 test lines)
-CVL Digits     saved_models/model_cvl-digits.weights.h5    model_cvl-digits_tokenizer.pkl  Cell 29 (6,698 test strings)
-IAM Combined   saved_models/model_iam_combined.weights.h5  model_iam_combined_tokenizer.pkl Cell 39 (966 val lines)
-Washington     saved_models/model_washington.weights.h5    model_washington_tokenizer.pkl  Cell 16 (Architecture summary)
+Parzival       model_parzival.weights.h5       model_parzival_tokenizer.pkl     56            1,576,908     Cell 27 (1,328 test lines: 2.48% CER)
+ORAND-CAR-A    model_orand-car-a.weights.h5    model_orand-car-a_tokenizer.pkl  14            1,566,114     Cell 30 (3,784 test checks: 3.33% CER)
+CVL Digits     model_cvl-digits.weights.h5     model_cvl-digits_tokenizer.pkl   14            1,566,114     Cell 29 (6,698 test strings: 50.78% CER)
+IAM Combined   model_iam_combined.weights.h5   model_iam_combined_tokenizer.pkl 83            1,583,847     Cell 39 (966 val lines: 5.66% Val Dist)
+Washington     model_washington.weights.h5     model_washington_tokenizer.pkl   14            1,566,114     Cell 16 (Architecture baseline)
+Saint Gall     [Omitted during Colab export]   [Omitted during Colab export]    Unverified    Unverified    Cell 28 (707 test lines: 8.38% CER)
 ========================================================================================================================
-*Note on MLflow Provenance: saved_models/mlflow.db records six active production runs across experiments iam,
-iam_combined, test_numbers, test_direct, and test_inference. Primary quantitative benchmark provenance is recorded
-in the frozen execution outputs of tutorial_colab.ipynb.
+*Note on Parameter Scaling: Across all checkpoints, parameters scale strictly via P_total = 1,562,516 + 257C, where C
+equals the final Dense layer dimension stored in the HDF5 weights and tokenizer lexical_shape[-1].
+**Note on MLflow Provenance: saved_models/mlflow.db contains six run records belonging to experiments iam (3 runs) and
+iam_combined (3 runs). Primary quantitative benchmark provenance is recorded in the frozen execution outputs of tutorial_colab.ipynb.
 ```
 
 ---

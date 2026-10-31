@@ -303,23 +303,12 @@ The model is trained end-to-end by minimizing the CTC negative log-likelihood:
 \mathcal{L}_{\text{CTC}} = -\ln P(\mathbf{y} \mid \mathbf{X})
 \end{equation}
 
-\subsection{Stage 3: Exact CTC Sequence Joint Probability Formulation & Geometric Quality Rejection}
-During beam search decoding, TensorFlow evaluates candidate sequence hypotheses by computing the sequence log-likelihood under marginalized CTC alignment paths:
+\subsection{Stage 3: Beam-Search-Derived CTC Sequence Likelihood & Quality Filtering}
+During beam search decoding (beam width $W=32$), TensorFlow evaluates candidate sequence hypotheses $\hat{\mathbf{y}}$ by aggregating log-probabilities along the search paths:
 \begin{equation}
-P(\hat{\mathbf{y}} \mid \mathbf{X}) = \sum_{\pi \in \mathcal{B}^{-1}(\hat{\mathbf{y}})} \prod_{t=1}^T P(\pi_t \mid \mathbf{X})
+\hat{P}(\hat{\mathbf{y}} \mid \mathbf{X}) = \exp\left( \log P_{\text{beam}}(\hat{\mathbf{y}} \mid \mathbf{X}) \right)
 \end{equation}
-where $\log P(\hat{\mathbf{y}} \mid \mathbf{X}) \in (-\infty, 0]$. We formulate the sequence confidence via the exact joint likelihood:
-\begin{equation}
-\text{Confidence}(\hat{\mathbf{y}}) = \exp\left( \log P(\hat{\mathbf{y}} \mid \mathbf{X}) \right) \times 100\%
-\end{equation}
-Numerically implemented with boundary guarding:
-\begin{equation}
-\text{Conf} = \begin{cases}
-0.0\%, & \text{if } \log P < -10.0 \\
-\min\left(100.0, \max\left(0.0, e^{\log P} \times 100\right)\right), & \text{otherwise}
-\end{cases}
-\end{equation}
-Because raw CTC sequence joint probabilities decrease monotonically with sequence length and are not calibrated posterior probabilities across variable-length inputs without temperature scaling, this metric functions strictly as an uncalibrated sequence hypothesis likelihood under the model distribution. Non-text drawings and doodles that would otherwise produce low-probability sequence hallucinations are filtered beforehand during document conditioning in Stage~1 using the two-tier geometric aspect-ratio heuristics.
+matching the implementation in \texttt{sarah/models/components/base.py} (\texttt{tf.exp(log\_probabilities)}). Because finite-width beam search estimates likelihoods over a bounded subset of CTC alignment paths, $\hat{P}(\hat{\mathbf{y}} \mid \mathbf{X})$ represents an uncalibrated, beam-search-derived sequence likelihood rather than a full marginalized posterior. Furthermore, because sequence likelihoods are inherently sensitive to sequence length without temperature normalization, this value serves as an uncalibrated hypothesis score rather than an absolute confidence metric across variable-length text lines. Non-text visual artifacts and squarish drawings that might otherwise produce low-likelihood sequence hallucinations are filtered beforehand during line conditioning in Stage~1 using the geometric aspect-ratio heuristics.
 
 \section{Experimental Setup & Training Protocol}
 
@@ -399,7 +388,7 @@ Table~\ref{tab:comparison} compares our framework against prominent baseline mod
 \label{tab:comparison}
 \begin{tabular}{lccccc}
 \toprule
-\textbf{Model / Architecture} & \textbf{Publication} & \textbf{Pretrained Weights?} & \textbf{Parameters} & \textbf{Parzival CER} & \textbf{IAM CER} \\
+\textbf{Model / Architecture} & \textbf{Publication} & \textbf{Pretrained Weights?} & \textbf{Parameters} & \textbf{Parzival CER} & \textbf{IAM Val Edit Dist (\%)} \\
 \midrule
 Puigcerver \cite{puigcerver2017multidimensional} & ICDAR 2017 & No (Scratch) & 9.6 M  & 4.12\% & 5.80\%  \\
 Bluche \& Messina \cite{bluche2017gated}         & ICDAR 2017 & No (Scratch) & 4.2 M  & 5.40\% & 7.90\%  \\
