@@ -70,7 +70,7 @@ To resolve these challenges without foundation weights, we present:
 \begin{enumerate}
     \item A \textbf{Scale-Invariant Document Engine} dynamically estimating median stroke scale $\text{med\_h}$, leveling smartphone shadows via closure division, deskewing canvases, stripping ruled lines, and slicing dense paragraphs via valley splitting.
     \item An \textbf{Un-Dilated Aspect Ratio Doodle Filter} ($AR_{\text{true}} < 1.8 \land H > 0.9\text{med\_h}$) that rejects decorative drawings with $100\%$ precision, preventing hallucinated sequences.
-    \item A deep \textbf{PySarah Flor Hybrid Architecture} combining four GatedConv2D noise-filtering blocks, an 8-head Multi-Head Self-Attention layer, 3x BiLSTM sequence modeling, and exact Connectionist Temporal Classification (CTC).
+    \item A deep \textbf{PySarah Flor Hybrid Architecture} combining seven convolutional stages with six interleaved residual Gated-CNN blocks, a two-head Multi-Head Self-Attention layer ($h=2, d_k=8$), three stacked BiLSTM layers, and exact Connectionist Temporal Classification (CTC), operating with only $1.58\text{M}$ parameters ($P_{\text{total}} = 1,562,516 + 257C$).
     \item An \textbf{Exact Posterior CTC Confidence Formulation} ($\text{Conf} = \exp(\log P) \times 100\%$) and regex normalization for medical dosages and financial strings.
     \item A unified composite training strategy (\textbf{\texttt{iam-digits}}, $91,540$ samples) that resolves numeric blindness.
     
@@ -79,7 +79,7 @@ To resolve these challenges without foundation weights, we present:
 \begin{figure*}[t]
 \centering
 \IfFileExists{figures/fig1_architecture.png}{\includegraphics[width=0.95\textwidth]{figures/fig1_architecture.png}}{\fbox{\parbox{0.95\textwidth}{\centering \vspace{2cm} [Figure 1: Deep PySarah Flor Neural Network Architecture] \vspace{2cm}}}}
-\caption{End-to-end PySarah Flor hybrid neural network architecture combining 4x GatedConv2D blocks, Multi-Head Self-Attention, 3x Stacked BiLSTM, and exact CTC beam search decoding.}
+\caption{End-to-end PySarah Flor hybrid neural network architecture combining seven convolutional stages with six interleaved residual GatedConv2D blocks, two-head Multi-Head Self-Attention, three stacked BiLSTM layers, and exact CTC beam search decoding ($1.58\text{M}$ parameters).}
 \label{fig:arch}
 \end{figure*}
 
@@ -129,7 +129,7 @@ AR_{\text{true}} = \frac{W_{\text{ink}}}{H_{\text{ink}}} < 1.8 \quad \text{AND} 
 \subsection{Stage 2: Deep PySarah Flor Neural Network}
 Input line strips $\mathbf{X} \in \mathbb{R}^{64 \times 1024 \times 1}$ are processed by:
 \begin{enumerate}
-    \item \textbf{4x GatedConv2D Blocks:} 
+    \item \textbf{6x Residual GatedConv2D Blocks:} 
     \begin{equation}
     \mathbf{Y} = (\mathbf{X} * \mathbf{W}_f + \mathbf{b}_f) \odot \sigma(\mathbf{X} * \mathbf{W}_g + \mathbf{b}_g)
     \end{equation}
@@ -221,13 +221,13 @@ DAN \cite{coquenet2023dan} & IEEE TPAMI 2023 & No & 18.5 M & 4.80\% & 14.50\% & 
 Decoded-ViT \cite{zhang2024decoded} & ICDAR 2024 & Yes (ImageNet) & 28.0 M & 4.60\% & 12.80\% & 95.0 ms \\
 HTR-VT \cite{kang2025htr} & Pat. Rec. 2025 & No & 14.2 M & 4.45\% & 8.90\% & 35.0 ms \\
 \midrule
-\textbf{Proposed PySarah Flor} & \textbf{This Work} & \textbf{NO (Scratch)} & \textbf{9.8 M} & \textbf{4.35\%} & \textbf{2.48\%} & \textbf{27.5 ms} \\
+\textbf{Proposed PySarah Flor} & \textbf{This Work} & \textbf{NO (Scratch)} & \textbf{1.58 M} & \textbf{4.35\%} & \textbf{2.48\%} & \textbf{27.5 ms} \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
 \section{Conclusion}\label{sec4}
-We presented a scale-invariant and noise-robust offline Handwritten Text Recognition system trained from scratch without external pretrained weights. By coupling a Scale-Invariant Document Engine with a deep Gated-CNN + Multi-Head Self-Attention + BiLSTM + CTC architecture and multi-dataset \texttt{iam-digits} composition ($91,540$ samples), our framework achieves a $4.18\%$ CER across ten real-world scenarios at an inference latency under $28\text{ ms}$.
+We presented a scale-invariant and noise-robust offline Handwritten Text Recognition system trained from scratch without external pretrained weights. By coupling a Scale-Invariant Document Engine with a deep Gated-CNN + Multi-Head Self-Attention + BiLSTM + CTC architecture and multi-dataset \texttt{iam-digits} composition ($91,540$ samples), our framework achieves \textbf{2.48\%} test CER on the Parzival medieval benchmark and \textbf{3.33\%} on ORAND bank checks, operating at an inference latency of $27.5\text{ ms}$ per text line with only $1.58\text{M}$ parameters.
 
 \begin{thebibliography}{15}
 \bibitem{plamondon2000} Plamondon, R., Srihari, S.N.: Online and off-line handwriting recognition: A comprehensive survey. IEEE Trans. Pattern Anal. Mach. Intell. 22(1), 63--84 (2000)

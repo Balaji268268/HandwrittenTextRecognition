@@ -88,9 +88,9 @@ The primary contributions of this paper are summarized as follows:
     \item \textbf{Scale-Adaptive Document Conditioning Engine:} We formulate an end-to-end preprocessing pipeline that dynamically computes the median character stroke height ($\text{med\_h}$), enabling scale-invariant document normalization across uncalibrated mobile and scanner resolutions without manual hyperparameter tuning.
     \item \textbf{Morphological Illumination & Line Suppression:} We introduce morphological closure division using scale-parameterized kernels to level non-uniform smartphone illumination gradients, coupled with horizontal opening operators that strip ruled paper lines without fragmenting vertical character stems.
     \item \textbf{Valley-Splitting Line Slicing & Doodle Discrimination:} We design a projection-profile valley-splitting algorithm capable of cleanly segmenting dense multi-line paragraphs, integrated with an un-dilated aspect ratio discrimination filter ($AR_{\text{true}} < 1.8 \land H > 0.9 \cdot \text{med\_h}$) that systematically rejects non-text doodles, preventing model hallucination.
-    \item \textbf{Lightweight Hybrid Neural Architecture ($1.58\text{M}$ Parameters):} We engineer a deep sequence model combining four Gated-Convolutional blocks (which dynamically filter paper noise via spatial gating), an 8-head Multi-Head Self-Attention layer, and three Bidirectional LSTM layers with Connectionist Temporal Classification (CTC). The entire model comprises only $1,583,848$ parameters, running in $27.5\text{ ms}$ per line.
+    \item \textbf{Lightweight Hybrid Neural Architecture ($1.58\text{M}$ Parameters):} We engineer a deep sequence model combining seven convolutional stages with six interleaved residual Gated-CNN blocks (which dynamically filter paper noise via spatial gating), a two-head Multi-Head Self-Attention layer ($h=2, d_k=8$), and three Bidirectional LSTM layers with Connectionist Temporal Classification (CTC). The architecture comprises exactly $1,583,847$ parameters for vocabulary size $C=83$, governed by the closed-form scaling equation $P_{\text{total}} = 1,562,516 + 257C$, and runs in $27.5\text{ ms}$ per line.
     \item \textbf{Exact Posterior CTC Confidence Formulation:} We derive a mathematically bounded confidence formulation, establishing that $P = \exp(\log P_{\text{CTC}}) \times 100\%$ provides calibrated posterior probabilities that reject out-of-distribution noise ($< 0.01\%$).
-    \item \textbf{Multi-Domain Empirical Validation:} We conduct rigorous cross-domain evaluations across five distinct handwriting corpora (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits), establishing high accuracy on medieval German ($2.48\%$ test CER) and bank checks ($3.33\%$ test CER) while analyzing the fundamental distribution shift in unconstrained digit strings.
+    \item \textbf{Multi-Domain Empirical Validation:} We conduct rigorous multi-dataset evaluations across five distinct handwriting corpora (Parzival, ORAND-CAR-A, Saint Gall, IAM Combined, and CVL Digits), establishing high transcription accuracy on medieval German ($2.48\%$ test CER) and bank checks ($3.33\%$ test CER) while systematically analyzing the performance and distribution shift in unconstrained digit strings.
 \end{enumerate}
 
 \section{Related Work}
@@ -320,13 +320,13 @@ Clean handwriting sequences score $85\% - 99\%$, whereas non-text doodles and ex
 \section{Experimental Setup & Training Protocol}
 
 \subsection{Benchmark Datasets}
-To evaluate cross-domain generalization, the proposed framework is evaluated across five distinct datasets spanning historical literature, medieval manuscripts, modern cursive prose, and bank checks:
+To evaluate dataset-specific recognition performance across heterogeneous handwriting domains, the proposed framework is evaluated across five distinct academic benchmarks spanning historical literature, medieval manuscripts, modern cursive prose, and financial documents:
 \begin{enumerate}
     \item \textbf{Parzival Dataset:} $4,477$ text lines extracted from the 13th-century medieval German manuscript \emph{Parzival} by Wolfram von Eschenbach \cite{romero2011}. Written in Middle High German with gothic minuscule script, featuring high abbreviation density and interlocking ascenders/descenders.
-    \item \textbf{ORAND-CAR-A Dataset:} $2,009$ training images and $1,000$ test images of courtesy amount strings from real French and English bank checks \cite{koerich2014}.
+    \item \textbf{ORAND-CAR-A Dataset:} Courtesy amount numeral strings from real bank checks from the ICDAR 2014 competition \cite{koerich2014}. The official dataset comprises $2,009$ ground-truth training images (partitioned into $1,708$ training and $301$ held-out validation images under an 85/15 split) and $3,784$ official test courtesy amounts.
     \item \textbf{Saint Gall Dataset:} $1,410$ text lines from the 9th-century Carolingian script codex preserved in the Abbey of Saint Gall.
     \item \textbf{IAM Handwriting Database:} $6,161$ training lines, $966$ validation lines, and $1,861$ test lines from $657$ writers, written in modern English prose \cite{marti2002iam}.
-    \item \textbf{CVL Digits Dataset:} $7,000$ isolated and multi-digit handwritten strings from $200$ writers \cite{kleber2013cvl}.
+    \item \textbf{CVL Digits Dataset:} Multi-writer handwritten digit strings from the CVL database \cite{kleber2013cvl}, containing $7,960$ numeral string images partitioned into $1,073$ training, $189$ validation, and $6,698$ test samples.
 \end{enumerate}
 
 \subsection{Warm-Started Transfer & Step-Capped Optimization}
@@ -351,7 +351,7 @@ With batch size $B=16$, each epoch processes $12,800$ samples. Optimization is p
 
 \section{Experimental Results & Discussion}
 
-\subsection{Cross-Domain Empirical Results}
+\subsection{Multi-Dataset Empirical Results}
 Table~\ref{tab:benchmarks} presents the verified quantitative performance across the five evaluated benchmarks. All metrics represent exact empirical evaluations logged from the trained checkpoints.
 
 \begin{table*}[t]
@@ -368,7 +368,7 @@ Table~\ref{tab:benchmarks} presents the verified quantitative performance across
 \textbf{IAM Combined}   & Multi-Writer Modern English Prose       & 966 val lines & 15 & 5.664\%*& --              & -- \\
 \textbf{CVL Digits}     & Multi-Writer Digit Strings              & 6,698 strings & 35 & 6.934\% & 50.78\%         & N/A \\
 \bottomrule
-\multicolumn{7}{l}{\footnotesize *Note: IAM Combined reports best validation normalized edit distance at epoch 12. Independent test evaluation was not executed and is preserved as unreported (--).} \\
+\multicolumn{7}{l}{\footnotesize *Note: IAM Combined reports best validation normalized edit distance at epoch 12 ($5.66\%$, final epoch 15: $5.81\%$), verified in Cell 39 and \texttt{model\_iam\_combined\_epochs.csv}. Test evaluation was not executed and is preserved as unreported (--).} \\
 \multicolumn{7}{l}{\footnotesize **Note on Provenance: Saint Gall test evaluation is documented via frozen execution output of Cell 28 (Epoch 14 restored, 707 lines); binary weights file was omitted during Colab export.} \\
 \multicolumn{7}{l}{\footnotesize Metric definition: CER and WER are computed as macro-averaged per-sample normalized Levenshtein distances: $\text{CER} = \frac{1}{N}\sum_{i=1}^N \frac{\text{Lev}(p_i, y_i)}{\max(1, |y_i|)}$.}
 \end{tabular}
@@ -384,9 +384,9 @@ The model achieves exceptional transcription accuracy on the Parzival medieval c
 \end{figure*}
 
 \subsection{Analysis of Distribution Shift: The CVL Digits Case Study (RQ5)}
-A critical finding revealed by our empirical audit is the performance disparity observed on the CVL Digits dataset: while the validation edit distance converged smoothly to \textbf{6.934\%}, the test CER degraded to \textbf{50.78\%} (Table~\ref{tab:benchmarks}). 
+A critical finding revealed by our empirical evaluation is the substantial performance disparity observed on the CVL Digits dataset: while the validation edit distance converged smoothly to \textbf{6.934\%}, the test CER degraded to \textbf{50.78\%} (Table~\ref{tab:benchmarks}). 
 
-Investigating this anomaly addresses \textbf{RQ5}. Unlike historical manuscripts or English prose where character n-gram transitions follow strict orthographic and linguistic constraints (which the BiLSTM and attention layers learn effectively), isolated digit sequences lack language model redundancy. In CVL Digits, the training split consists predominantly of short, isolated digits or fixed-length sequences, whereas the test split contains variable-length strings with high visual compression. Without an external language model prior, CTC beam search suffers from sequence alignment drift on out-of-distribution sequence lengths. This demonstrates that pure digit sequence recognition requires explicit length-invariant data augmentation or digit-specific language priors.
+Investigating this outcome addresses \textbf{RQ5}. We report this large validation-to-test performance gap as a key diagnostic finding. We hypothesize that two compounding factors drive this degradation: (1) isolated numeric sequences lack lexical and orthographic language model constraints, depriving CTC beam search of linguistic transition priors; and (2) potential distribution shift between the training partition ($1,073$ strings) and the large multi-writer test set ($6,698$ strings) involving unconstrained sequence lengths, writer stroke compression, and character segmentation ambiguities. We frame this distribution-shift interpretation as an open hypothesis for future per-length and writer-stratified error decomposition.
 
 \subsection{Comparison with State-of-the-Art Literature (2023--2026)}
 Table~\ref{tab:comparison} compares our framework against prominent baseline models and recent literature from 2023 to 2026.
