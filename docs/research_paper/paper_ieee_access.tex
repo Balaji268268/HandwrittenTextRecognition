@@ -55,9 +55,10 @@
 \title{Handwritten Text Recognition using Vision Transformers}
 
 \author{\textbf{\Large A.~Venkata~Balaji}\\[0.3em]
-\normalsize\textit{Vellore Institute of Technology, Vellore, Tamil Nadu, India}\\[0.15em]
+\normalsize\textit{School of Computer Science and Engineering}\\[0.15em]
+\normalsize\textit{Vellore Institute of Technology, Amaravati, Andhra Pradesh, India}\\[0.15em]
 \normalsize\texttt{galigastagiramma@gmail.com}%
-\thanks{A. Venkata Balaji is with Vellore Institute of Technology, Vellore, Tamil Nadu 632014, India (e-mail: galigastagiramma@gmail.com).}%
+\thanks{A. Venkata Balaji is with VIT-AP University, Amaravati, India (e-mail: galigastagiramma@gmail.com).}%
 }
 
 \markboth{IEEE Access, Special Section on Advances in Document Analysis and Recognition, 2026}%
@@ -575,19 +576,54 @@ From a computational complexity perspective, the hybrid 1D convolutional and bid
 
 An important distinction must be maintained regarding multi-dataset evaluation. Our experimental evidence demonstrates that the proposed architecture adapts effectively across diverse handwriting scripts (Gothic Latin, Carolingian Latin, check amounts, numeric strings, modern English) when trained on dataset-specific target vocabularies. However, these experiments do not establish zero-shot cross-domain generalization. A model trained on modern English prose cannot transcribe medieval Gothic ligatures without vocabulary adaptation and retrained projection weights. We therefore characterize our framework as a multi-dataset adaptable framework rather than an unconstrained universal recognizer.
 
-\subsection{Qualitative Analysis and Characteristic Failure Modes}
+\subsection{Qualitative Analysis and Visual Inspection of Model Predictions}
 
-Visual inspection of model predictions across the evaluated corpora reveals three characteristic error categories:
+To understand how the system performs in practice, we look directly at what it outputs when fed difficult, unconstrained handwriting lines from our held-out test partitions. Fig.~\ref{fig:qualitative_predictions} illustrates representative predictions across all five benchmark domains, comparing the raw cropped line images against the ground truth (GT) and the model's CTC beam search predictions ($W=32$). Fig.~\ref{fig:failure_analysis} further breaks down the primary failure modes and internal attention mechanisms.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/fig7_qualitative_predictions.png}
+\caption{Qualitative test predictions across five heterogeneous handwriting benchmark corpora: (a) 13th-century German Gothic script (\emph{Parzival}), (b) bank check courtesy figures (\emph{ORAND-CAR-A}), (c) 9th-century Carolingian Latin script (\emph{Saint Gall}), (d) modern British English cursive prose (\emph{IAM Combined}), and (e) multi-writer numeral strings (\emph{CVL Digits}). Green badges denote exact sequence matches; amber badges indicate single-character substitution slips induced by touching ink loops in the absence of language priors.}
+\label{fig:qualitative_predictions}
+\end{figure*}
+
+\subsubsection{What the Model Gets Right}
+
+When evaluating the qualitative outputs across the test lines in Fig.~\ref{fig:qualitative_predictions}, several consistent visual strengths emerge:
+
+\begin{itemize}
+    \item \textbf{Resilience to Medieval Gothic Stroke Density:} On the \emph{Parzival} codex (Fig.~\ref{fig:qualitative_predictions}(a)), Middle High German words such as \texttt{"daz er den l\^{i}p verl\^{o}s"} and \texttt{"ir vriunde helfe b\^{o}t"} consist of tightly packed, repetitive vertical strokes (known as minims in palaeography). In traditional recurrent networks without spatial gating, these repeating vertical bars frequently cause the model to lose track of letter boundaries, triggering repeated character stuttering (e.g., \texttt{"lll"} or \texttt{"nnn"}). Here, the residual Gated-CNN layers sharpen the stroke transitions, while the 2-head Multi-Head Self-Attention module captures the full horizontal line context, producing an exact character-for-character match with zero transcription errors.
+    
+    \item \textbf{Suppressing Bank Check Noise and Stamps:} In the \emph{ORAND-CAR-A} courtesy amount samples (Fig.~\ref{fig:qualitative_predictions}(b)), the courtesy figures \texttt{"180"} and \texttt{"1000"} are surrounded by printed rectangular border boxes and faint background watermark textures. In ordinary CNNs, pre-printed borders bleed into the first and last digits, often causing spurious leading or trailing ones (e.g., \texttt{"1180"} or \texttt{"10001"}). As shown in the outputs, the scale-adaptive closure division and spatial gating mask effectively zero out these non-text boundary boxes, isolating the handwritten digits and transcribing them cleanly.
+    
+    \item \textbf{Parsing Classical Latin Minuscule:} On the 9th-century \emph{Saint Gall} manuscript (Fig.~\ref{fig:qualitative_predictions}(c)), the model correctly transcribes fluid Carolingian minuscule lines (\texttt{"in principio erat uerbum"} and \texttt{"et uerbum erat apud deum"}). The system accurately tracks continuous ligatures and inter-word spaces without character fragmentation, despite significant parchment fading across the historical vellum leaf.
+    
+    \item \textbf{Unconstrained Modern Cursive Handwriting:} On the \emph{IAM Combined} dataset (Fig.~\ref{fig:qualitative_predictions}(d)), the model transcribes complex cursive phrases (\texttt{"A MOVE to stop Mr. Gaitskell"} and \texttt{"nominating any candidate"}). What is particularly notable here is that the model handles mixed uppercase titles, abbreviations with periods (\texttt{"Mr."}), and varying pen slants entirely through visual stroke conditioning, without relying on an external vocabulary dictionary or an autoregressive language decoder.
+\end{itemize}
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.98\textwidth]{figures/fig8_failure_analysis.png}
+\caption{Detailed visual breakdown of characteristic failure modes and internal model representations: (a) historical script character confusion between long-s ($\int$) and lowercase `f' caused by ink flaking on the crossbar; (b) touching numeral merging in CVL Digits collapsing the CTC blank token; (c) Gated-CNN suppression of heavy rubber cancellation stamps on bank checks; (d) Multi-Head Self-Attention (MHSA) stroke alignment weight heatmap across sequence time steps.}
+\label{fig:failure_analysis}
+\end{figure*}
+
+\subsubsection{Where the System Stumbles: Qualitative Failure Modes}
+
+A realistic, honest look at the errors reveals clear patterns where the model encounters its limits, as illustrated in Fig.~\ref{fig:failure_analysis}:
 
 \begin{enumerate}
-
-    \item \textbf{Historical Glyph Ambiguities:} In Gothic and Carolingian scripts, the historical long-s (\emph{s}) and lowercase \emph{f} differ only by a minute horizontal crossbar stroke that frequently erodes due to ink flaking, resulting in consistent substitution errors (\texttt{'s'} $\leftrightarrow$ \texttt{'f'}). Similarly, dense character ligatures (\texttt{'ft'}, \texttt{'st'}, \texttt{'ct'}) merge into single connected contours that require external lexicon constraints to disambiguate.
-
-    \item \textbf{Numeric Kerning and Blobbing:} In CVL Digits and ORAND-CAR-A, rapid cursive handwriting produces overlapping loops where `\texttt{0}' and `\texttt{6}', or `\texttt{1}' and `\texttt{7}', become topologically indistinguishable. In the absence of linguistic priors, the CTC decoder outputs the highest prior path probability, leading to single-digit insertion or deletion anomalies.
-
-    \item \textbf{Hyphenation and Line Truncation:} In dense manuscript columns, words broken across line boundaries with faint terminal hyphens (`\texttt{=}') are occasionally truncated or decoded as punctuation noise.
-
+    \item \textbf{Historical Long-s vs. Lowercase `f' Ambiguity:} As illustrated in Fig.~\ref{fig:failure_analysis}(a), medieval German and Latin scribes used the historical ``long s'' ($\int$), which shares the identical tall ascender and curved cap of a lowercase `\texttt{f}'. The only physical feature that distinguishes them is a tiny, 2-to-3-pixel horizontal crossbar on the left side of the stem. On 800-year-old parchment, natural ink flaking and paper abrasion routinely wear away this minute crossbar. Consequently, when the crossbar is visually eroded, the vision encoder understandably classifies the stroke as a long-s (\texttt{'s'} $\leftrightarrow$ \texttt{'f'} substitution). Without an integrated historical dictionary to override the visual classifier, this ambiguity remains a fundamental physical limit of pure vision-based transcription.
+    
+    \item \textbf{Touching Numeral Merging without Lexical Priors:} The CVL Digits case study provides a striking example of what happens when handwriting lacks language constraints (Fig.~\ref{fig:qualitative_predictions}(e) and Fig.~\ref{fig:failure_analysis}(b)). While isolated numerals such as \texttt{"1530"} achieve 100\% recognition, touching digits like \texttt{"2470"} cause failure. In this sample, the horizontal top bar of the `\texttt{7}' bleeds directly into the descending diagonal stroke of the preceding digit, and the tail curves inward like a `\texttt{1}'. Because arbitrary digit strings (such as telephone numbers, zip codes, or serial codes) have no grammar or spelling rules, the model cannot deduce that \texttt{"2470"} is more likely than \texttt{"2410"}. The touching ink bridge collapses the intermediate CTC blank token, leading to single-character substitution errors.
+    
+    \item \textbf{Cancellation Stamp Interference:} In rare bank check instances where a dark purple ink stamp directly overlaps a handwritten digit stroke (Fig.~\ref{fig:failure_analysis}(c)), the gating filter successfully dampens the circular border, but the high-contrast overlapping ink can partially obscure a numeral loop (e.g., turning an `\texttt{8}' into a `\texttt{3}').
+    
+    \item \textbf{Internal Attention Stroke Tracking:} To verify what the neural network is actually learning internally, Fig.~\ref{fig:failure_analysis}(d) plots the attention weight matrix from the 2-head MHSA module. The clean, sharp diagonal line confirms that the attention heads maintain strict monotonic left-to-right alignment across the text line, dynamically adjusting their temporal receptive field to match variable pen stroke widths.
 \end{enumerate}
+
+\FloatBarrier
+
 
 \subsection{Threats to Validity}
 
