@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sarah"
+version = "1.0.0"
+description = "Scale-Adaptive Offline Handwritten Text Recognition Framework"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "A. Venkata Balaji", email = "galigastagiramma@gmail.com" }
+]
+license = { text = "MIT" }
+dependencies = [
+    "fonttools",
+    "levenshtein",
+    "matplotlib",
+    "mlflow",
+    "opencv-python-headless",
+    "pandas",
+    "tensorflow"
+]
