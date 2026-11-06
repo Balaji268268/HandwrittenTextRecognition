@@ -557,15 +557,10 @@ Addressing \textbf{RQ6}, our $1.58\text{M}$ parameter architecture achieves lowe
 From a computational complexity perspective, the hybrid 1D convolutional and bidirectional recurrent decoder evaluates in linear time $\mathcal{O}(T)$ with respect to sequence length $T=256$. In contrast, full vision-language Transformers incur quadratic spatial self-attention complexity $\mathcal{O}(L^2)$ across input image patches ($L = H \times W / P^2$) followed by sequential autoregressive token generation. By projecting convolutional feature maps directly into 1D sequences and applying non-autoregressive CTC beam search, our system avoids autoregressive decoding bottlenecks.
 
 \begin{figure*}[t]
-
 \centering
-
 \includegraphics[width=0.98\textwidth]{figures/fig5_dataset_samples.png}
-
-\caption{Visual samples extracted from the four evaluated academic benchmark corpora, illustrating diverse handwriting styles, scripts, and artifact challenges: (a) Parzival 13th-century German Gothic cursive codex; (b) Saint Gall 9th-century Carolingian Latin manuscript; (c) CVL Digits multi-writer numeral strings; and (d) ORAND-CAR-A bank check courtesy amount strings.}
-
+\caption{Authentic qualitative test predictions extracted directly from test evaluation cells across four evaluated benchmark corpora in \texttt{tutorial\_colab.ipynb}: (a) Parzival 13th-century German Gothic codex ($2.48\%$ test CER, $8.53\%$ WER); (b) Saint Gall 9th-century Carolingian Latin manuscript ($8.38\%$ test CER, $41.62\%$ WER); (c) ORAND-CAR-A bank check courtesy amount figures ($3.33\%$ test CER, $96.67\%$ accuracy); and (d) IAM Combined dynamic text line recognition ($5.66\%$ best validation edit distance). Each panel displays authentic handwriting line crops alongside ground truth (True) and CTC beam search transcriptions (Pred), verifying robust handling of dense Gothic minims, classical Latin ligatures, bank check background noise, and cursive letter continuity.}
 \label{fig:dataset_samples}
-
 \end{figure*}
 
 \section{Discussion, Failure Modes, and Threats to Validity}
@@ -578,48 +573,32 @@ An important distinction must be maintained regarding multi-dataset evaluation. 
 
 \subsection{Qualitative Analysis and Visual Inspection of Model Predictions}
 
-To understand how the system performs in practice, we look directly at what it outputs when fed difficult, unconstrained handwriting lines from our held-out test partitions. Fig.~\ref{fig:qualitative_predictions} illustrates representative predictions across all five benchmark domains, comparing the raw cropped line images against the ground truth (GT) and the model's CTC beam search predictions ($W=32$). Fig.~\ref{fig:failure_analysis} further breaks down the primary failure modes and internal attention mechanisms.
-
-\begin{figure*}[!t]
-\centering
-\includegraphics[width=0.98\textwidth]{figures/fig7_qualitative_predictions.png}
-\caption{Qualitative test predictions across five heterogeneous handwriting benchmark corpora: (a) 13th-century German Gothic script (\emph{Parzival}), (b) bank check courtesy figures (\emph{ORAND-CAR-A}), (c) 9th-century Carolingian Latin script (\emph{Saint Gall}), (d) modern British English cursive prose (\emph{IAM Combined}), and (e) multi-writer numeral strings (\emph{CVL Digits}). Green badges denote exact sequence matches; amber badges indicate single-character substitution slips induced by touching ink loops in the absence of language priors.}
-\label{fig:qualitative_predictions}
-\end{figure*}
+To evaluate how the trained models behave on real-world test data, we examine the qualitative transcriptions produced directly during held-out test evaluations across our benchmark corpora, illustrated in Fig.~\ref{fig:dataset_samples}. For each benchmark, the model transcribes unconstrained handwritten line images using CTC beam search decoding ($W=32$) without external language models.
 
 \subsubsection{What the Model Gets Right}
 
-When evaluating the qualitative outputs across the test lines in Fig.~\ref{fig:qualitative_predictions}, several consistent visual strengths emerge:
+Visual inspection of the real prediction outputs in Fig.~\ref{fig:dataset_samples} demonstrates several consistent operational strengths:
 
 \begin{itemize}
-    \item \textbf{Resilience to Medieval Gothic Stroke Density:} On the \emph{Parzival} codex (Fig.~\ref{fig:qualitative_predictions}(a)), Middle High German words such as \texttt{"daz er den l\^{i}p verl\^{o}s"} and \texttt{"ir vriunde helfe b\^{o}t"} consist of tightly packed, repetitive vertical strokes (known as minims in palaeography). In traditional recurrent networks without spatial gating, these repeating vertical bars frequently cause the model to lose track of letter boundaries, triggering repeated character stuttering (e.g., \texttt{"lll"} or \texttt{"nnn"}). Here, the residual Gated-CNN layers sharpen the stroke transitions, while the 2-head Multi-Head Self-Attention module captures the full horizontal line context, producing an exact character-for-character match with zero transcription errors.
+    \item \textbf{Tracking Dense Gothic Minims (Parzival):} In the 13th-century German Gothic codex (Fig.~\ref{fig:dataset_samples}(a)), the model evaluates Middle High German poetic lines, transcribing \texttt{"Parcifal spch . ir svlt noch sehn ."}, \texttt{"liez man stozen im zetroste ."}, and \texttt{"er spch wer irret vns den wech ."} with exact sequence fidelity. The text is characterized by dense, repetitive vertical downstrokes (minims) that routinely trigger character stuttering in standard recurrent networks. Here, the residual Gated-CNN layers sharpen the stroke transitions, while the 2-head Multi-Head Self-Attention module captures the broader horizontal context, achieving an overall test CER of \textbf{2.48\%} and WER of \textbf{8.53\%}.
     
-    \item \textbf{Suppressing Bank Check Noise and Stamps:} In the \emph{ORAND-CAR-A} courtesy amount samples (Fig.~\ref{fig:qualitative_predictions}(b)), the courtesy figures \texttt{"180"} and \texttt{"1000"} are surrounded by printed rectangular border boxes and faint background watermark textures. In ordinary CNNs, pre-printed borders bleed into the first and last digits, often causing spurious leading or trailing ones (e.g., \texttt{"1180"} or \texttt{"10001"}). As shown in the outputs, the scale-adaptive closure division and spatial gating mask effectively zero out these non-text boundary boxes, isolating the handwritten digits and transcribing them cleanly.
+    \item \textbf{Extracting Bank Check Courtesy Figures (ORAND-CAR-A):} On the French bank check corpus (Fig.~\ref{fig:dataset_samples}(c)), the model accurately transcribes courtesy amounts including \texttt{"3015"}, \texttt{"30071"}, \texttt{"1094"}, and \texttt{"5600"} with 100\% exact match. As seen in the crops, these courtesy amounts sit within tight pre-printed rectangular boxes and contain background noise artifacts. The scale-adaptive closure division and spatial gating masks effectively suppress these boundary lines, achieving \textbf{3.33\%} test CER and \textbf{96.67\%} character accuracy.
     
-    \item \textbf{Parsing Classical Latin Minuscule:} On the 9th-century \emph{Saint Gall} manuscript (Fig.~\ref{fig:qualitative_predictions}(c)), the model correctly transcribes fluid Carolingian minuscule lines (\texttt{"in principio erat uerbum"} and \texttt{"et uerbum erat apud deum"}). The system accurately tracks continuous ligatures and inter-word spaces without character fragmentation, despite significant parchment fading across the historical vellum leaf.
+    \item \textbf{Resolving Carolingian Latin Minuscule (Saint Gall):} On the 9th-century Latin manuscript (Fig.~\ref{fig:dataset_samples}(b)), the model transcribes classical minuscule lines, including \texttt{"t ille coepit eum introducere in cellaria scripturarum"} and \texttt{"vocarent et eius regimini se subdendo contraderent"}. The system successfully parses continuous historical ligatures and fluctuating baselines across aged vellum parchment, achieving an overall test CER of \textbf{8.38\%} (WER: \textbf{41.62\%}).
     
-    \item \textbf{Unconstrained Modern Cursive Handwriting:} On the \emph{IAM Combined} dataset (Fig.~\ref{fig:qualitative_predictions}(d)), the model transcribes complex cursive phrases (\texttt{"A MOVE to stop Mr. Gaitskell"} and \texttt{"nominating any candidate"}). What is particularly notable here is that the model handles mixed uppercase titles, abbreviations with periods (\texttt{"Mr."}), and varying pen slants entirely through visual stroke conditioning, without relying on an external vocabulary dictionary or an autoregressive language decoder.
+    \item \textbf{Cursive English Recognition (IAM Combined):} On modern cursive handwriting (Fig.~\ref{fig:dataset_samples}(d)), the model transcribes continuous pen strokes (\texttt{"We Start With Good"}), achieving a best validation normalized edit distance of \textbf{5.66\%} without dictionary rescoring.
 \end{itemize}
 
-\begin{figure*}[!t]
-\centering
-\includegraphics[width=0.98\textwidth]{figures/fig8_failure_analysis.png}
-\caption{Detailed visual breakdown of characteristic failure modes and internal model representations: (a) historical script character confusion between long-s ($\int$) and lowercase `f' caused by ink flaking on the crossbar; (b) touching numeral merging in CVL Digits collapsing the CTC blank token; (c) Gated-CNN suppression of heavy rubber cancellation stamps on bank checks; (d) Multi-Head Self-Attention (MHSA) stroke alignment weight heatmap across sequence time steps.}
-\label{fig:failure_analysis}
-\end{figure*}
+\subsubsection{Where the Model Stumbles: Characteristic Failure Modes}
 
-\subsubsection{Where the System Stumbles: Qualitative Failure Modes}
-
-A realistic, honest look at the errors reveals clear patterns where the model encounters its limits, as illustrated in Fig.~\ref{fig:failure_analysis}:
+Examining the transcriptions also reveals clear, explainable failure boundaries:
 
 \begin{enumerate}
-    \item \textbf{Historical Long-s vs. Lowercase `f' Ambiguity:} As illustrated in Fig.~\ref{fig:failure_analysis}(a), medieval German and Latin scribes used the historical ``long s'' ($\int$), which shares the identical tall ascender and curved cap of a lowercase `\texttt{f}'. The only physical feature that distinguishes them is a tiny, 2-to-3-pixel horizontal crossbar on the left side of the stem. On 800-year-old parchment, natural ink flaking and paper abrasion routinely wear away this minute crossbar. Consequently, when the crossbar is visually eroded, the vision encoder understandably classifies the stroke as a long-s (\texttt{'s'} $\leftrightarrow$ \texttt{'f'} substitution). Without an integrated historical dictionary to override the visual classifier, this ambiguity remains a fundamental physical limit of pure vision-based transcription.
+    \item \textbf{Pre-Printed Border Bleed in Bank Checks:} In the second sample of Fig.~\ref{fig:dataset_samples}(c), the ground truth \texttt{"20000"} is transcribed as \texttt{"520000"}. Here, a dark pre-printed boundary stroke immediately adjacent to the leading digit `2' bleeds into the numeral contour, tricking the convolutional front-end into classifying a leading `5'. This illustrates the necessity of strict bounding box margin clearance in automated bank check processing.
     
-    \item \textbf{Touching Numeral Merging without Lexical Priors:} The CVL Digits case study provides a striking example of what happens when handwriting lacks language constraints (Fig.~\ref{fig:qualitative_predictions}(e) and Fig.~\ref{fig:failure_analysis}(b)). While isolated numerals such as \texttt{"1530"} achieve 100\% recognition, touching digits like \texttt{"2470"} cause failure. In this sample, the horizontal top bar of the `\texttt{7}' bleeds directly into the descending diagonal stroke of the preceding digit, and the tail curves inward like a `\texttt{1}'. Because arbitrary digit strings (such as telephone numbers, zip codes, or serial codes) have no grammar or spelling rules, the model cannot deduce that \texttt{"2470"} is more likely than \texttt{"2410"}. The touching ink bridge collapses the intermediate CTC blank token, leading to single-character substitution errors.
+    \item \textbf{Historical Orthographic and Abbreviation Ambiguities:} In the Saint Gall Latin samples (Fig.~\ref{fig:dataset_samples}(b)), historical scribes used ligature abbreviations and classical orthography (e.g., interchangeable `u' and `v' in \texttt{"introdvcere"} vs. \texttt{"introducere"}, and terminal abbreviation tails resulting in \texttt{"contraderentpt"} vs. \texttt{"contraderent"}). Without a domain-specific Latin lexicon to normalize historical abbreviations, pure visual CTC decoding faithfully transcribes the raw glyph marks.
     
-    \item \textbf{Cancellation Stamp Interference:} In rare bank check instances where a dark purple ink stamp directly overlaps a handwritten digit stroke (Fig.~\ref{fig:failure_analysis}(c)), the gating filter successfully dampens the circular border, but the high-contrast overlapping ink can partially obscure a numeral loop (e.g., turning an `\texttt{8}' into a `\texttt{3}').
-    
-    \item \textbf{Internal Attention Stroke Tracking:} To verify what the neural network is actually learning internally, Fig.~\ref{fig:failure_analysis}(d) plots the attention weight matrix from the 2-head MHSA module. The clean, sharp diagonal line confirms that the attention heads maintain strict monotonic left-to-right alignment across the text line, dynamically adjusting their temporal receptive field to match variable pen stroke widths.
+    \item \textbf{Touching Numerals without Lexical Priors (CVL Digits):} As quantified in Section~\ref{sec:cvl_digits_case_study} and illustrated in Fig.~\ref{fig:generalization_gap}, arbitrary digit strings lack spelling rules or $n$-gram language priors. When handwritten numerals touch, the intermediate CTC blank token collapses, causing substitution errors that cannot be corrected by contextual grammar.
 \end{enumerate}
 
 \FloatBarrier
